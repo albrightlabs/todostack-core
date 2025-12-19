@@ -1,0 +1,29 @@
+# Dependencies
+/vendor/
+
+# Environment
+.env
+
+# Data files (user data)
+/data/*.json
+!/data/.gitkeep
+
+# Custom assets (for branding customization)
+/public/assets/custom.css
+/public/assets/custom.js
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Backups
+*.bak
