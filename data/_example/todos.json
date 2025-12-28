@@ -1,0 +1,79 @@
+{
+    "settings": {
+        "hideCompleted": false,
+        "theme": "auto"
+    },
+    "sections": [
+        {
+            "id": "example-section-1",
+            "title": "Getting Started",
+            "position": 0,
+            "collapsed": false,
+            "items": [
+                {
+                    "id": "example-item-1",
+                    "title": "Welcome to TodoStack!",
+                    "description": "This is a sample todo item. Click on it to see the full details, add due dates, priorities, and sub-tasks.",
+                    "completed": false,
+                    "priority": null,
+                    "dueDate": null,
+                    "position": 0,
+                    "createdAt": "2025-01-01T00:00:00+00:00",
+                    "updatedAt": "2025-01-01T00:00:00+00:00",
+                    "children": []
+                },
+                {
+                    "id": "example-item-2",
+                    "title": "Try adding a new task",
+                    "description": "Use the input field at the top to quickly add new tasks. Press Enter to create.",
+                    "completed": false,
+                    "priority": "medium",
+                    "dueDate": null,
+                    "position": 1,
+                    "createdAt": "2025-01-01T00:00:00+00:00",
+                    "updatedAt": "2025-01-01T00:00:00+00:00",
+                    "children": [
+                        {
+                            "id": "example-child-1",
+                            "title": "This is a sub-task",
+                            "completed": false,
+                            "position": 0
+                        }
+                    ]
+                },
+                {
+                    "id": "example-item-3",
+                    "title": "Mark this as complete",
+                    "description": "Click the checkbox to mark tasks as done.",
+                    "completed": true,
+                    "priority": null,
+                    "dueDate": null,
+                    "position": 2,
+                    "createdAt": "2025-01-01T00:00:00+00:00",
+                    "updatedAt": "2025-01-01T00:00:00+00:00",
+                    "children": []
+                }
+            ]
+        },
+        {
+            "id": "example-section-2",
+            "title": "Work Tasks",
+            "position": 1,
+            "collapsed": false,
+            "items": [
+                {
+                    "id": "example-item-4",
+                    "title": "Review project proposal",
+                    "description": "Example work task with high priority.",
+                    "completed": false,
+                    "priority": "high",
+                    "dueDate": null,
+                    "position": 0,
+                    "createdAt": "2025-01-01T00:00:00+00:00",
+                    "updatedAt": "2025-01-01T00:00:00+00:00",
+                    "children": []
+                }
+            ]
+        }
+    ]
+}

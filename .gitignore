@@ -7,6 +7,7 @@
 # Data files (user data)
 /data/*.json
 !/data/.gitkeep
+!/data/_example/
 
 # Custom assets (for branding customization)
 /public/assets/custom.css

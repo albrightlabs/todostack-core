@@ -1,33 +1,26 @@
-<div class="app">
-    <header class="app-header">
-        <div class="app-brand">
+<header class="site-header">
+    <div>
+        <div class="header-left">
             <?php if ($branding['logo_url']): ?>
-            <a href="/" class="app-logo-link">
-                <img src="<?= htmlspecialchars($branding['logo_url']) ?>" alt="<?= htmlspecialchars($branding['site_name']) ?>" class="app-logo" style="max-width: <?= htmlspecialchars($branding['logo_width']) ?>px;">
+            <a href="/" class="site-logo">
+                <img src="<?= htmlspecialchars($branding['logo_url']) ?>" alt="<?= htmlspecialchars($branding['site_name']) ?>" style="max-width: <?= htmlspecialchars($branding['logo_width']) ?>px;">
             </a>
             <?php else: ?>
-            <h1 class="app-title">
+            <a href="/" class="site-logo">
                 <?php if ($branding['site_emoji']): ?>
-                <span class="app-emoji"><?= htmlspecialchars($branding['site_emoji']) ?></span>
+                <span class="site-logo-emoji"><?= htmlspecialchars($branding['site_emoji']) ?></span>
                 <?php endif; ?>
                 <?= htmlspecialchars($branding['site_name']) ?>
-            </h1>
+            </a>
             <?php endif; ?>
         </div>
-        <div class="header-actions">
+        <div class="header-right">
             <?php if ($branding['external_link_url']): ?>
-            <a href="<?= htmlspecialchars($branding['external_link_url']) ?>" class="external-link" target="_blank" rel="noopener">
+            <a href="<?= htmlspecialchars($branding['external_link_url']) ?>" class="header-external-link" target="_blank" rel="noopener noreferrer">
                 <?php if ($branding['external_link_logo']): ?>
-                <img src="<?= htmlspecialchars($branding['external_link_logo']) ?>" alt="" class="external-link-logo">
+                <img src="<?= htmlspecialchars($branding['external_link_logo']) ?>" alt="<?= htmlspecialchars($branding['external_link_name']) ?>" width="16" height="16">
                 <?php endif; ?>
-                <?php if ($branding['external_link_name']): ?>
-                <span class="external-link-text"><?= htmlspecialchars($branding['external_link_name']) ?></span>
-                <?php endif; ?>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                    <polyline points="15 3 21 3 21 9"></polyline>
-                    <line x1="10" y1="14" x2="21" y2="3"></line>
-                </svg>
+                <?= htmlspecialchars($branding['external_link_name']) ?> &rarr;
             </a>
             <?php endif; ?>
             <button type="button" class="btn btn-icon" id="settings-btn" title="Settings">
@@ -37,7 +30,10 @@
                 </svg>
             </button>
         </div>
-    </header>
+    </div>
+</header>
+
+<div class="app">
 
     <main class="app-main">
         <div class="global-input-container">
@@ -56,13 +52,20 @@
             Add Section
         </button>
     </main>
-
-    <?php if ($branding['footer_text']): ?>
-    <footer class="app-footer">
-        <?= $branding['footer_text'] ?>
-    </footer>
-    <?php endif; ?>
 </div>
+
+<?php if ($branding['footer_text'] || $branding['footer_show_powered_by']): ?>
+<footer class="site-footer">
+    <?php if ($branding['footer_text']): ?>
+    <div class="footer-text"><?= $branding['footer_text'] ?></div>
+    <?php endif; ?>
+    <?php if ($branding['footer_show_powered_by']): ?>
+    <div class="powered-by">
+        Powered by <a href="https://github.com/albrightlabs/todostack-core" target="_blank" rel="noopener">TodoStack</a>
+    </div>
+    <?php endif; ?>
+</footer>
+<?php endif; ?>
 
 <!-- Item Detail Modal -->
 <div class="modal-overlay" id="item-modal">

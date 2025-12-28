@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($pageTitle) ?></title>
+    <title>Login - <?= htmlspecialchars($branding['site_name']) ?></title>
     <link rel="icon" type="image/png" href="<?= htmlspecialchars($branding['favicon_url'] ?: '/assets/favicon.png') ?>">
     <link rel="stylesheet" href="/assets/style.css">
     <?php if (file_exists(__DIR__ . '/../public/assets/custom.css')): ?>
@@ -14,18 +14,62 @@
         :root {
             --accent-color: <?= htmlspecialchars($branding['color_primary']) ?>;
             --accent-hover: <?= htmlspecialchars($branding['color_primary_hover']) ?>;
-            --checkbox-checked: <?= htmlspecialchars($branding['color_primary']) ?>;
         }
     </style>
     <?php endif; ?>
-    <meta name="csrf-token" content="<?= htmlspecialchars($csrfToken) ?>">
 </head>
 <body>
-    <?= $content ?>
-    <script src="/assets/app.js"></script>
-    <?php if (file_exists(__DIR__ . '/../public/assets/custom.js')): ?>
-    <script src="/assets/custom.js"></script>
-    <?php endif; ?>
+    <header class="site-header">
+        <div>
+            <div class="header-left">
+                <a href="/" class="site-logo">
+                    <?php if ($branding['logo_url']): ?>
+                    <img src="<?= htmlspecialchars($branding['logo_url']) ?>" alt="<?= htmlspecialchars($branding['site_name']) ?>" style="max-width: <?= htmlspecialchars($branding['logo_width']) ?>px;">
+                    <?php else: ?>
+                    <?php if ($branding['site_emoji']): ?>
+                    <span class="site-logo-emoji"><?= htmlspecialchars($branding['site_emoji']) ?></span>
+                    <?php endif; ?>
+                    <?= htmlspecialchars($branding['site_name']) ?>
+                    <?php endif; ?>
+                </a>
+            </div>
+            <div class="header-right">
+                <?php if ($branding['external_link_url']): ?>
+                <a href="<?= htmlspecialchars($branding['external_link_url']) ?>" class="header-external-link" target="_blank" rel="noopener noreferrer">
+                    <?php if ($branding['external_link_logo']): ?>
+                    <img src="<?= htmlspecialchars($branding['external_link_logo']) ?>" alt="<?= htmlspecialchars($branding['external_link_name']) ?>" width="16" height="16">
+                    <?php endif; ?>
+                    <?= htmlspecialchars($branding['external_link_name']) ?> &rarr;
+                </a>
+                <?php endif; ?>
+            </div>
+        </div>
+    </header>
+
+    <div class="password-page">
+        <div class="password-container">
+            <div class="password-icon">🔒</div>
+            <h1>Login Required</h1>
+            <p class="password-section-name">Enter your password to access <?= htmlspecialchars($branding['site_name']) ?>.</p>
+
+            <?php if (!empty($authError)): ?>
+            <div class="password-error"><?= htmlspecialchars($authError) ?></div>
+            <?php endif; ?>
+
+            <form method="POST" action="/login" class="password-form">
+                <input
+                    type="password"
+                    name="password"
+                    placeholder="Enter password"
+                    class="password-input"
+                    autofocus
+                    required
+                >
+                <button type="submit" class="password-submit">Login</button>
+            </form>
+        </div>
+    </div>
+
     <script>
     function setFaviconFromEmoji(emoji, letter, options) {
         options = options || {};
@@ -39,14 +83,11 @@
         canvas.width = size;
         canvas.height = size;
         var ctx = canvas.getContext('2d');
-
-        // Draw emoji as base
         ctx.font = (size - 4) + 'px serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(emoji, size / 2, size / 2 + 2);
 
-        // Draw letter overlay if provided
         if (letter) {
             ctx.font = letterFont;
             ctx.textAlign = 'right';
@@ -60,7 +101,6 @@
             ctx.fillText(letter, x, y);
         }
 
-        // Set favicon
         var link = document.querySelector('link[rel="icon"]');
         if (!link) {
             link = document.createElement('link');
@@ -81,17 +121,13 @@
 
         var img = new Image();
         img.crossOrigin = 'anonymous';
-
         img.onload = function() {
             var canvas = document.createElement('canvas');
             canvas.width = size;
             canvas.height = size;
             var ctx = canvas.getContext('2d');
-
-            // Draw the base favicon
             ctx.drawImage(img, 0, 0, size, size);
 
-            // Draw letter overlay if provided
             if (letter) {
                 ctx.font = font;
                 ctx.textAlign = 'right';
@@ -105,7 +141,6 @@
                 ctx.fillText(letter, x, y);
             }
 
-            // Replace the favicon
             var link = document.querySelector('link[rel="icon"]');
             if (!link) {
                 link = document.createElement('link');
@@ -115,7 +150,6 @@
             link.type = 'image/png';
             link.href = canvas.toDataURL('image/png');
         };
-
         img.src = imageUrl;
     }
 
@@ -127,25 +161,18 @@
         var customLetter = <?= json_encode($branding['favicon_letter']) ?>;
         var showLetter = <?= json_encode($branding['favicon_show_letter']) ?>;
 
-        // Determine the letter to show (if any)
         var letter = null;
         if (showLetter) {
             letter = customLetter || siteName.charAt(0).toUpperCase();
         }
 
-        var options = {
-            letterFont: 'bold 16px sans-serif',
-            padding: 1
-        };
+        var options = { letterFont: 'bold 16px sans-serif', padding: 1 };
 
-        // Determine favicon source: custom URL > custom emoji > site emoji
         if (faviconUrl) {
             setFaviconFromImage(faviconUrl, letter, options);
         } else {
-            var emoji = faviconEmoji || siteEmoji;
-            if (emoji) {
-                setFaviconFromEmoji(emoji, letter, options);
-            }
+            var emoji = faviconEmoji || siteEmoji || '✅';
+            setFaviconFromEmoji(emoji, letter, options);
         }
     });
     </script>

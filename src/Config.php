@@ -38,10 +38,11 @@ class Config
 
             // Branding - Footer
             'footer_text' => '',
+            'footer_show_powered_by' => true,
 
             // Branding - Colors
-            'color_primary' => '#228be6',
-            'color_primary_hover' => '#1c7ed6',
+            'color_primary' => '#3b82f6',
+            'color_primary_hover' => '#2563eb',
 
             // Security
             'admin_password' => '',
@@ -78,6 +79,7 @@ class Config
 
             // Branding - Footer
             'FOOTER_TEXT' => 'footer_text',
+            'FOOTER_SHOW_POWERED_BY' => 'footer_show_powered_by',
 
             // Branding - Colors
             'COLOR_PRIMARY' => 'color_primary',
@@ -123,6 +125,18 @@ class Config
     }
 
     /**
+     * Check if a feature flag is enabled
+     */
+    public static function feature(string $name): bool
+    {
+        $value = self::get('feature_' . $name, false);
+        if (is_string($value)) {
+            return strtolower($value) === 'true' || $value === '1';
+        }
+        return (bool) $value;
+    }
+
+    /**
      * Get all branding-related configuration as an array for templates
      */
     public static function getBranding(): array
@@ -143,6 +157,7 @@ class Config
             'external_link_url' => $instance->config['external_link_url'],
             'external_link_logo' => $instance->config['external_link_logo'],
             'footer_text' => $instance->config['footer_text'],
+            'footer_show_powered_by' => $instance->config['footer_show_powered_by'],
             'color_primary' => $instance->config['color_primary'],
             'color_primary_hover' => $instance->config['color_primary_hover'],
         ];

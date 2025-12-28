@@ -344,6 +344,56 @@ const TodoApp = {
         this.renderList();
     },
 
+    startInlineEdit(itemId, titleElement) {
+        // Don't start if already editing
+        if (titleElement.querySelector('input')) return;
+
+        const item = this.findItemById(itemId);
+        if (!item) return;
+
+        const originalTitle = item.title;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'inline-title-input';
+        input.value = originalTitle;
+
+        // Replace span content with input
+        titleElement.innerHTML = '';
+        titleElement.appendChild(input);
+        input.focus();
+        input.select();
+
+        const saveEdit = async () => {
+            const newTitle = input.value.trim();
+            if (newTitle && newTitle !== originalTitle) {
+                await this.updateItem(itemId, { title: newTitle });
+            } else {
+                // Revert to original if empty or unchanged
+                titleElement.textContent = originalTitle;
+            }
+        };
+
+        const cancelEdit = () => {
+            titleElement.textContent = originalTitle;
+        };
+
+        input.addEventListener('blur', saveEdit);
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.blur();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                input.removeEventListener('blur', saveEdit);
+                cancelEdit();
+            }
+        });
+
+        // Prevent click from bubbling
+        input.addEventListener('click', (e) => e.stopPropagation());
+    },
+
     // ========================================
     // Child Item Operations
     // ========================================
@@ -719,9 +769,16 @@ const TodoApp = {
                     <span class="checkmark"></span>
                 </label>
                 <div class="item-content">
-                    <span class="item-title">${this.escapeHtml(item.title)}</span>
+                    <span class="item-title" data-item-id="${item.id}">${this.escapeHtml(item.title)}</span>
                     ${meta.length ? `<div class="item-meta">${meta.join('')}</div>` : ''}
                 </div>
+                <button type="button" class="item-details-btn" title="Edit details">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="1"></circle>
+                        <circle cx="19" cy="12" r="1"></circle>
+                        <circle cx="5" cy="12" r="1"></circle>
+                    </svg>
+                </button>
                 <button type="button" class="item-expand ${isExpanded ? '' : 'collapsed'}" title="${hasChildren ? 'Toggle subtasks' : 'Add subtasks'}">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="6 9 12 15 18 9"></polyline>
@@ -817,9 +874,28 @@ const TodoApp = {
             });
         });
 
-        // Item content clicks
-        document.querySelectorAll('.item[data-item-id] .item-content').forEach(content => {
-            content.addEventListener('click', (e) => {
+        // Item title clicks - inline editing
+        document.querySelectorAll('.item[data-item-id] .item-title').forEach(title => {
+            title.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const itemId = title.dataset.itemId;
+                this.startInlineEdit(itemId, title);
+            });
+        });
+
+        // Item details button clicks - open modal
+        document.querySelectorAll('.item[data-item-id] .item-details-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const itemId = btn.closest('.item').dataset.itemId;
+                this.openItemModal(itemId);
+            });
+        });
+
+        // Item meta clicks - open modal
+        document.querySelectorAll('.item[data-item-id] .item-meta').forEach(meta => {
+            meta.addEventListener('click', (e) => {
+                e.stopPropagation();
                 const itemId = e.target.closest('.item').dataset.itemId;
                 this.openItemModal(itemId);
             });
@@ -976,13 +1052,24 @@ const TodoApp = {
     },
 
     fireConfetti() {
-        const colors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#95e1d3', '#f38181', '#aa96da', '#fcbad3'];
-        const particleCount = 50;
+        // Rich color palette with some shimmery options
+        const colors = [
+            '#ff6b6b', '#ee5a5a', // reds
+            '#4ecdc4', '#45b7aa', // teals
+            '#ffe66d', '#ffd93d', // yellows
+            '#95e1d3', '#a8e6cf', // mints
+            '#f38181', '#ff9a8b', // corals
+            '#aa96da', '#c9b1ff', // purples
+            '#fcbad3', '#ffc4d6', // pinks
+            '#74b9ff', '#a29bfe', // blues
+            '#ffeaa7', '#fdcb6e', // golds
+        ];
+        const particleCount = 60;
 
         // Fire from bottom-left
-        this.createConfettiBurst(0, window.innerHeight, 45, colors, particleCount);
+        this.createConfettiBurst(0, window.innerHeight, 55, colors, particleCount);
         // Fire from bottom-right
-        this.createConfettiBurst(window.innerWidth, window.innerHeight, 135, colors, particleCount);
+        this.createConfettiBurst(window.innerWidth, window.innerHeight, 125, colors, particleCount);
     },
 
     createConfettiBurst(startX, startY, angle, colors, count) {
@@ -991,64 +1078,129 @@ const TodoApp = {
         document.body.appendChild(container);
 
         for (let i = 0; i < count; i++) {
-            const particle = document.createElement('div');
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            const size = Math.random() * 10 + 5;
-            const spread = 50; // Angle spread in degrees
-            const particleAngle = (angle - spread / 2 + Math.random() * spread) * (Math.PI / 180);
-            const velocity = Math.random() * 1200 + 1000; // Much higher velocity
-            const vx = Math.cos(particleAngle) * velocity;
-            const vy = -Math.sin(particleAngle) * velocity;
-            const rotation = Math.random() * 360;
-            const rotationSpeed = (Math.random() - 0.5) * 720;
+            // Stagger particle creation for more natural burst
+            setTimeout(() => {
+                this.createConfettiParticle(container, startX, startY, angle, colors);
+            }, i * 8);
+        }
 
-            particle.style.cssText = `
-                position: absolute;
-                left: ${startX}px;
-                top: ${startY}px;
-                width: ${size}px;
-                height: ${size}px;
-                background: ${color};
-                border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
-                transform: rotate(${rotation}deg);
-            `;
+        // Cleanup container after animation
+        setTimeout(() => {
+            if (container.parentNode) container.remove();
+        }, 5000);
+    },
 
-            container.appendChild(particle);
+    createConfettiParticle(container, startX, startY, angle, colors) {
+        const particle = document.createElement('div');
+        const color = colors[Math.floor(Math.random() * colors.length)];
 
-            // Animate
-            let x = startX, y = startY, rot = rotation;
-            let velX = vx, velY = vy;
-            const gravity = 600;
-            const friction = 0.99;
-            let opacity = 1;
-            const startTime = performance.now();
+        // Different particle types: ribbon (60%), square (25%), circle (15%)
+        const typeRand = Math.random();
+        let width, height, borderRadius, isRibbon;
 
-            const animate = (time) => {
-                const elapsed = (time - startTime) / 1000;
-                if (elapsed > 3 || opacity <= 0) {
-                    particle.remove();
-                    if (container.children.length === 0) container.remove();
-                    return;
-                }
+        if (typeRand < 0.6) {
+            // Ribbon/streamer - tall and thin
+            width = Math.random() * 4 + 3;
+            height = Math.random() * 12 + 10;
+            borderRadius = '2px';
+            isRibbon = true;
+        } else if (typeRand < 0.85) {
+            // Square
+            const size = Math.random() * 8 + 5;
+            width = size;
+            height = size;
+            borderRadius = '2px';
+            isRibbon = false;
+        } else {
+            // Circle
+            const size = Math.random() * 8 + 4;
+            width = size;
+            height = size;
+            borderRadius = '50%';
+            isRibbon = false;
+        }
 
-                velY += gravity * 0.016;
-                velX *= friction;
-                velY *= friction;
-                x += velX * 0.016;
-                y += velY * 0.016;
-                rot += rotationSpeed * 0.016;
-                opacity = Math.max(0, 1 - elapsed / 3);
+        const spread = 55;
+        const particleAngle = (angle - spread / 2 + Math.random() * spread) * (Math.PI / 180);
+        const velocity = Math.random() * 900 + 800;
+        let velX = Math.cos(particleAngle) * velocity;
+        let velY = -Math.sin(particleAngle) * velocity;
 
-                particle.style.left = x + 'px';
-                particle.style.top = y + 'px';
-                particle.style.transform = `rotate(${rot}deg)`;
-                particle.style.opacity = opacity;
+        // Initial state
+        let x = startX + (Math.random() - 0.5) * 20;
+        let y = startY;
+        let rotZ = Math.random() * 360;
+        let rotY = Math.random() * 360; // For 3D tumble effect
+        const rotZSpeed = (Math.random() - 0.5) * 600;
+        const rotYSpeed = (Math.random() - 0.5) * 800;
 
-                requestAnimationFrame(animate);
-            };
+        // Physics properties vary by particle type
+        const gravity = 350 + Math.random() * 150;
+        const friction = 0.985 + Math.random() * 0.01;
+        const drift = (Math.random() - 0.5) * 60; // Horizontal wind drift
+
+        // Wobble for ribbons (flutter effect)
+        const wobbleSpeed = Math.random() * 8 + 4;
+        const wobbleAmount = isRibbon ? (Math.random() * 40 + 20) : 0;
+        let wobblePhase = Math.random() * Math.PI * 2;
+
+        particle.style.cssText = `
+            position: absolute;
+            left: ${x}px;
+            top: ${y}px;
+            width: ${width}px;
+            height: ${height}px;
+            background: ${color};
+            border-radius: ${borderRadius};
+            transform-style: preserve-3d;
+            backface-visibility: visible;
+        `;
+
+        container.appendChild(particle);
+
+        const startTime = performance.now();
+        let lastTime = startTime;
+
+        const animate = (time) => {
+            const elapsed = (time - startTime) / 1000;
+            const dt = Math.min((time - lastTime) / 1000, 0.05); // Cap delta time
+            lastTime = time;
+
+            if (elapsed > 4 || y > window.innerHeight + 100) {
+                particle.remove();
+                return;
+            }
+
+            // Apply physics
+            velY += gravity * dt;
+            velX += drift * dt;
+            velX *= Math.pow(friction, dt * 60);
+            velY *= Math.pow(friction, dt * 60);
+
+            x += velX * dt;
+            y += velY * dt;
+            rotZ += rotZSpeed * dt;
+            rotY += rotYSpeed * dt;
+            wobblePhase += wobbleSpeed * dt;
+
+            // Calculate wobble for ribbons (simulates air resistance flutter)
+            const wobble = Math.sin(wobblePhase) * wobbleAmount;
+
+            // Opacity fade
+            const opacity = elapsed < 2.5 ? 1 : Math.max(0, 1 - (elapsed - 2.5) / 1.5);
+
+            // 3D transform with wobble
+            const scaleX = isRibbon ? Math.cos(rotY * Math.PI / 180) : 1;
+
+            particle.style.left = x + 'px';
+            particle.style.top = y + 'px';
+            particle.style.transform = `rotateZ(${rotZ + wobble}deg) scaleX(${Math.abs(scaleX) * 0.3 + 0.7})`;
+            particle.style.opacity = opacity;
 
             requestAnimationFrame(animate);
-        }
+        };
+
+        requestAnimationFrame(animate);
     },
 };
 
