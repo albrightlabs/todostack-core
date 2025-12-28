@@ -722,23 +722,6 @@ body {
     color: var(--text-primary);
 }
 
-.modal-title-input {
-    flex: 1;
-    font-size: 1.125rem;
-    font-weight: 600;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    padding: 4px 0;
-}
-
-.modal-title-input:focus {
-    outline: none;
-}
-
-.modal-title-input::placeholder {
-    color: var(--text-muted);
-}
 
 .modal-close {
     flex-shrink: 0;

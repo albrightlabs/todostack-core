@@ -71,7 +71,7 @@
 <div class="modal-overlay" id="item-modal">
     <div class="modal">
         <div class="modal-header">
-            <input type="text" class="modal-title-input" id="modal-title" placeholder="Task title">
+            <h2 class="modal-title">Item Details</h2>
             <button type="button" class="btn btn-icon modal-close" id="modal-close">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -80,8 +80,15 @@
             </button>
         </div>
         <div class="modal-body">
-            <label class="form-label">Description</label>
-            <textarea class="form-textarea" id="modal-description" placeholder="Add notes or details..."></textarea>
+            <div class="form-group">
+                <label class="form-label">Title</label>
+                <input type="text" class="form-input" id="modal-title" placeholder="Task title">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea class="form-textarea" id="modal-description" placeholder="Add notes or details..."></textarea>
+            </div>
 
             <div class="form-row">
                 <div class="form-group">
