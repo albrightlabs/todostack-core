@@ -44,8 +44,9 @@ class Config
             'color_primary' => '#3b82f6',
             'color_primary_hover' => '#2563eb',
 
-            // Security
-            'admin_password' => '',
+            // Security - Multi-User Auth
+            'super_admin_email' => '',
+            'super_admin_password_hash' => '',
 
             // Features
             'feature_dark_mode' => true,
@@ -85,8 +86,9 @@ class Config
             'COLOR_PRIMARY' => 'color_primary',
             'COLOR_PRIMARY_HOVER' => 'color_primary_hover',
 
-            // Security
-            'ADMIN_PASSWORD' => 'admin_password',
+            // Security - Multi-User Auth
+            'SUPER_ADMIN_EMAIL' => 'super_admin_email',
+            'SUPER_ADMIN_PASSWORD_HASH' => 'super_admin_password_hash',
 
             // Features
             'FEATURE_DARK_MODE' => 'feature_dark_mode',

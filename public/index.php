@@ -11,9 +11,8 @@ use App\Config;
 use App\Auth;
 use App\TodoList;
 
-// Initialize services
+// Initialize config
 $config = Config::getInstance();
-$auth = new Auth();
 $branding = Config::getBranding();
 
 // Get request path
@@ -22,8 +21,8 @@ $path = trim($requestUri, '/');
 
 // Handle logout
 if ($path === 'logout') {
-    $auth->logout();
-    header('Location: /');
+    Auth::logout();
+    header('Location: /login');
     exit;
 }
 
@@ -31,37 +30,60 @@ if ($path === 'logout') {
 if ($path === 'login') {
     $authError = null;
 
-    // Process login form submission
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password'])) {
-        if ($auth->login($_POST['password'])) {
-            header('Location: /');
-            exit;
-        }
-        $authError = 'Incorrect password. Please try again.';
-    }
-
-    // Show login page if password protected and not authenticated
-    if ($auth->isPasswordProtected() && !$auth->isAuthenticated()) {
-        include __DIR__ . '/../templates/password.php';
+    // If already authenticated, redirect to home
+    if (Auth::check()) {
+        header('Location: /');
         exit;
     }
 
-    // If not password protected or already authenticated, redirect to home
-    header('Location: /');
+    // Process login form submission
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $email = $_POST['email'] ?? '';
+        $password = $_POST['password'] ?? '';
+
+        if (Auth::login($email, $password)) {
+            header('Location: /');
+            exit;
+        }
+        $authError = 'Invalid email or password. Please try again.';
+    }
+
+    // Show login page
+    include __DIR__ . '/../templates/login.php';
     exit;
 }
 
-// Check authentication for main app
-if ($auth->isPasswordProtected() && !$auth->isAuthenticated()) {
-    header('Location: /login');
+// All other routes require authentication
+Auth::requireAuth();
+
+// Get current user for templates
+$currentUser = Auth::getCurrentUser();
+$csrfToken = Auth::getCsrfToken();
+
+// Handle users management page (admin only)
+if ($path === 'users') {
+    Auth::requireAdmin();
+
+    $pageTitle = 'User Management - ' . $branding['site_name'];
+
+    $content = render('users', [
+        'csrfToken' => $csrfToken,
+        'branding' => $branding,
+        'currentUser' => $currentUser,
+    ]);
+
+    echo render('layout', [
+        'pageTitle' => $pageTitle,
+        'content' => $content,
+        'csrfToken' => $csrfToken,
+        'branding' => $branding,
+        'currentUser' => $currentUser,
+    ]);
     exit;
 }
 
 // Initialize todo list
 $todoList = new TodoList(Config::get('data_path'));
-
-// Get CSRF token for JavaScript
-$csrfToken = $auth->getCsrfToken();
 
 // Get initial data
 $list = $todoList->getList();
@@ -74,6 +96,7 @@ $content = render('app', [
     'csrfToken' => $csrfToken,
     'list' => $list,
     'branding' => $branding,
+    'currentUser' => $currentUser,
 ]);
 
 echo render('layout', [
@@ -81,4 +104,5 @@ echo render('layout', [
     'content' => $content,
     'csrfToken' => $csrfToken,
     'branding' => $branding,
+    'currentUser' => $currentUser,
 ]);

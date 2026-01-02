@@ -1205,4 +1205,308 @@ const TodoApp = {
 };
 
 // Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', () => TodoApp.init());
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize main app if not on users page
+    if (!window.USERS_PAGE) {
+        TodoApp.init();
+    }
+
+    // Initialize user menu
+    UserMenu.init();
+
+    // Initialize users page if applicable
+    if (window.USERS_PAGE) {
+        UsersPage.init();
+    }
+});
+
+// ========================================
+// User Menu
+// ========================================
+
+const UserMenu = {
+    init() {
+        const toggle = document.getElementById('user-menu-toggle');
+        const menu = document.getElementById('user-menu');
+
+        if (!toggle || !menu) return;
+
+        toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menu.classList.toggle('open');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!menu.contains(e.target)) {
+                menu.classList.remove('open');
+            }
+        });
+    }
+};
+
+// ========================================
+// Users Page
+// ========================================
+
+const UsersPage = {
+    users: [],
+    editingUserId: null,
+    deletingUserId: null,
+
+    init() {
+        this.loadUsers();
+        this.bindEvents();
+    },
+
+    bindEvents() {
+        // Add user button
+        document.getElementById('add-user-btn')?.addEventListener('click', () => {
+            this.openModal();
+        });
+
+        // User form submit
+        document.getElementById('user-form')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.saveUser();
+        });
+
+        // Modal close buttons
+        document.querySelectorAll('[data-close]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const modalId = btn.dataset.close;
+                this.closeModal(modalId);
+            });
+        });
+
+        // Modal overlay click to close
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('show');
+                }
+            });
+        });
+
+        // Confirm delete button
+        document.getElementById('confirm-delete-user')?.addEventListener('click', () => {
+            this.confirmDelete();
+        });
+    },
+
+    async loadUsers() {
+        try {
+            const response = await fetch('/api/users', {
+                headers: {
+                    'X-CSRF-Token': window.CSRF_TOKEN
+                }
+            });
+            const data = await response.json();
+            if (data.success) {
+                this.users = data.data;
+                this.render();
+            }
+        } catch (error) {
+            console.error('Failed to load users:', error);
+        }
+    },
+
+    render() {
+        const container = document.getElementById('users-list');
+        if (!container) return;
+
+        if (this.users.length === 0) {
+            container.innerHTML = '<div class="users-empty">No users found</div>';
+            return;
+        }
+
+        container.innerHTML = this.users.map(user => this.renderUser(user)).join('');
+
+        // Bind edit/delete buttons
+        container.querySelectorAll('.edit-user-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const userId = btn.dataset.userId;
+                this.editUser(userId);
+            });
+        });
+
+        container.querySelectorAll('.delete-user-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const userId = btn.dataset.userId;
+                this.deleteUser(userId);
+            });
+        });
+    },
+
+    renderUser(user) {
+        const roleClass = user.role === 'admin' ? 'role-admin' : '';
+        const roleLabel = user.role === 'admin' ? 'Admin' : 'Read-Only';
+        const isCurrentUser = user.id === window.CURRENT_USER_ID;
+        const lastLogin = user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : 'Never';
+
+        return `
+            <div class="user-row">
+                <div class="user-info">
+                    <div class="user-email">${this.escapeHtml(user.email)}</div>
+                    <div class="user-meta">
+                        <span class="user-role ${roleClass}">${roleLabel}</span>
+                        ${user.is_super_admin ? '<span class="user-badge user-badge-super">Super Admin</span>' : ''}
+                        ${isCurrentUser ? '<span class="user-badge">You</span>' : ''}
+                        <span>Last login: ${lastLogin}</span>
+                    </div>
+                </div>
+                <div class="user-actions">
+                    <button type="button" class="btn btn-secondary btn-sm edit-user-btn" data-user-id="${user.id}">Edit</button>
+                    ${!user.is_super_admin ? `<button type="button" class="btn btn-danger btn-sm delete-user-btn" data-user-id="${user.id}">Delete</button>` : ''}
+                </div>
+            </div>
+        `;
+    },
+
+    openModal(user = null) {
+        const modal = document.getElementById('user-modal');
+        const title = document.getElementById('user-modal-title');
+        const form = document.getElementById('user-form');
+        const passwordInput = document.getElementById('user-password');
+        const passwordHelp = document.getElementById('password-help');
+
+        this.editingUserId = user?.id || null;
+        title.textContent = user ? 'Edit User' : 'Add User';
+
+        if (user) {
+            document.getElementById('user-id').value = user.id;
+            document.getElementById('user-email').value = user.email;
+            document.getElementById('user-password').value = '';
+            document.getElementById('user-role').value = user.role;
+            passwordInput.required = false;
+            passwordHelp.textContent = 'Leave blank to keep current password';
+
+            // Disable role change for super admin
+            if (user.is_super_admin) {
+                document.getElementById('user-role').disabled = true;
+            } else {
+                document.getElementById('user-role').disabled = false;
+            }
+        } else {
+            form.reset();
+            document.getElementById('user-id').value = '';
+            passwordInput.required = true;
+            passwordHelp.textContent = 'Minimum 8 characters';
+            document.getElementById('user-role').disabled = false;
+        }
+
+        modal.classList.add('show');
+        document.getElementById('user-email').focus();
+    },
+
+    closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('show');
+        }
+    },
+
+    async saveUser() {
+        const email = document.getElementById('user-email').value.trim();
+        const password = document.getElementById('user-password').value;
+        const role = document.getElementById('user-role').value;
+
+        const data = { email, role };
+        if (password) {
+            data.password = password;
+        }
+
+        try {
+            let response;
+            if (this.editingUserId) {
+                response = await fetch(`/api/users/${this.editingUserId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': window.CSRF_TOKEN
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                // If password changed, update it separately
+                if (password) {
+                    await fetch(`/api/users/${this.editingUserId}/password`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': window.CSRF_TOKEN
+                        },
+                        body: JSON.stringify({ password })
+                    });
+                }
+            } else {
+                data.password = password;
+                response = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': window.CSRF_TOKEN
+                    },
+                    body: JSON.stringify(data)
+                });
+            }
+
+            const result = await response.json();
+            if (result.success) {
+                this.closeModal('user-modal');
+                this.loadUsers();
+            } else {
+                alert(result.error || 'Failed to save user');
+            }
+        } catch (error) {
+            console.error('Failed to save user:', error);
+            alert('Failed to save user');
+        }
+    },
+
+    editUser(userId) {
+        const user = this.users.find(u => u.id === userId);
+        if (user) {
+            this.openModal(user);
+        }
+    },
+
+    deleteUser(userId) {
+        const user = this.users.find(u => u.id === userId);
+        if (!user) return;
+
+        this.deletingUserId = userId;
+        document.getElementById('delete-user-email').textContent = user.email;
+        document.getElementById('delete-user-modal').classList.add('show');
+    },
+
+    async confirmDelete() {
+        if (!this.deletingUserId) return;
+
+        try {
+            const response = await fetch(`/api/users/${this.deletingUserId}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-Token': window.CSRF_TOKEN
+                }
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                this.closeModal('delete-user-modal');
+                this.deletingUserId = null;
+                this.loadUsers();
+            } else {
+                alert(result.error || 'Failed to delete user');
+            }
+        } catch (error) {
+            console.error('Failed to delete user:', error);
+            alert('Failed to delete user');
+        }
+    },
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+};

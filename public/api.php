@@ -11,16 +11,23 @@ use App\Config;
 use App\Auth;
 use App\TodoList;
 use App\Api;
+use App\UserApi;
 
-// Initialize services
+// Initialize config
 $config = Config::getInstance();
-$auth = new Auth();
-$todoList = new TodoList(Config::get('data_path'));
-$api = new Api($todoList, $auth);
 
-// Handle request
+// Get request info
 $method = getMethod();
 $path = getPath();
 
-// Handle API routes
-$api->handle($method, $path);
+// Route to appropriate API handler
+if (str_starts_with($path, '/api/auth/') || str_starts_with($path, '/api/users')) {
+    // User and auth endpoints
+    $userApi = new UserApi();
+    $userApi->handle($method, $path);
+} else {
+    // Todo list endpoints
+    $todoList = new TodoList(Config::get('data_path'));
+    $api = new Api($todoList);
+    $api->handle($method, $path);
+}

@@ -6,12 +6,10 @@ namespace App;
 class Api
 {
     private TodoList $todoList;
-    private Auth $auth;
 
-    public function __construct(TodoList $todoList, Auth $auth)
+    public function __construct(TodoList $todoList)
     {
         $this->todoList = $todoList;
-        $this->auth = $auth;
     }
 
     /**
@@ -22,9 +20,17 @@ class Api
         // Remove /api prefix
         $path = preg_replace('#^/api#', '', $path) ?: '/';
 
-        // Require CSRF for write operations
+        // Require authentication for all API requests
+        Auth::requireAuth();
+
+        // Require CSRF and write permission for mutations
         if (in_array($method, ['POST', 'PUT', 'DELETE'])) {
-            $this->auth->requireCsrf();
+            Auth::requireCsrf();
+
+            // Check write permission (admins only)
+            if (!Auth::canWrite()) {
+                jsonError('Read-only access. Modifications not allowed.', 403);
+            }
         }
 
         // Route the request

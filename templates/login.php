@@ -22,7 +22,7 @@
     <header class="site-header">
         <div>
             <div class="header-left">
-                <a href="/" class="site-logo">
+                <span class="site-logo">
                     <?php if ($branding['logo_url']): ?>
                     <img src="<?= htmlspecialchars($branding['logo_url']) ?>" alt="<?= htmlspecialchars($branding['site_name']) ?>" style="max-width: <?= htmlspecialchars($branding['logo_width']) ?>px;">
                     <?php else: ?>
@@ -31,7 +31,7 @@
                     <?php endif; ?>
                     <?= htmlspecialchars($branding['site_name']) ?>
                     <?php endif; ?>
-                </a>
+                </span>
             </div>
             <div class="header-right">
                 <?php if ($branding['external_link_url']): ?>
@@ -48,9 +48,9 @@
 
     <div class="password-page">
         <div class="password-container">
-            <div class="password-icon">🔒</div>
-            <h1>Login Required</h1>
-            <p class="password-section-name">Enter your password to access <?= htmlspecialchars($branding['site_name']) ?>.</p>
+            <div class="password-icon">🔐</div>
+            <h1>Sign In</h1>
+            <p class="password-section-name">Enter your credentials to access <?= htmlspecialchars($branding['site_name']) ?>.</p>
 
             <?php if (!empty($authError)): ?>
             <div class="password-error"><?= htmlspecialchars($authError) ?></div>
@@ -58,14 +58,22 @@
 
             <form method="POST" action="/login" class="password-form">
                 <input
-                    type="password"
-                    name="password"
-                    placeholder="Enter password"
+                    type="email"
+                    name="email"
+                    placeholder="Email address"
                     class="password-input"
+                    value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
                     autofocus
                     required
                 >
-                <button type="submit" class="password-submit">Login</button>
+                <input
+                    type="password"
+                    name="password"
+                    placeholder="Password"
+                    class="password-input"
+                    required
+                >
+                <button type="submit" class="password-submit">Sign In</button>
             </form>
         </div>
     </div>
