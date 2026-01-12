@@ -1,17 +1,67 @@
-<div class="users-page">
-    <div class="users-header">
-        <h1>User Management</h1>
-        <button type="button" class="btn btn-primary" id="add-user-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            Add User
-        </button>
+<header class="site-header">
+    <div class="header-content" style="flex-direction: row; align-items: center; justify-content: space-between; height: 56px; padding: 0 16px;">
+        <?php if ($branding['logo_url']): ?>
+        <a href="/" class="site-logo">
+            <img src="<?= htmlspecialchars($branding['logo_url']) ?>" alt="<?= htmlspecialchars($branding['site_name']) ?>" style="max-width: <?= htmlspecialchars($branding['logo_width']) ?>px;">
+        </a>
+        <?php else: ?>
+        <a href="/" class="site-logo">
+            <?php if ($branding['site_emoji']): ?>
+            <span class="site-logo-emoji"><?= htmlspecialchars($branding['site_emoji']) ?></span>
+            <?php endif; ?>
+            <?= htmlspecialchars($branding['site_name']) ?>
+        </a>
+        <?php endif; ?>
+        <div class="user-menu" id="user-menu">
+            <button type="button" class="user-menu-toggle" id="user-menu-toggle">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </button>
+            <div class="user-menu-dropdown" id="user-menu-dropdown">
+                <div class="user-menu-info">
+                    <span class="user-menu-email"><?= htmlspecialchars($currentUser['email'] ?? '') ?></span>
+                    <span class="user-menu-role role-<?= htmlspecialchars($currentUser['role'] ?? 'readonly') ?>"><?= $currentUser['role'] === 'admin' ? 'Admin' : 'Read-Only' ?></span>
+                </div>
+                <a href="/users" class="user-menu-item">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    Manage Users
+                </a>
+                <a href="/logout" class="user-menu-item user-menu-item-danger">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    Sign Out
+                </a>
+            </div>
+        </div>
     </div>
+</header>
 
-    <div class="users-list" id="users-list">
-        <!-- Users loaded by JavaScript -->
+<div class="users-page-container">
+    <div class="users-page">
+        <div class="users-header">
+            <h1>User Management</h1>
+            <button type="button" class="btn btn-primary" id="add-user-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add User
+            </button>
+        </div>
+
+        <div class="users-list" id="users-list">
+            <div class="empty-state">Loading users...</div>
+        </div>
     </div>
 </div>
 

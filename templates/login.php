@@ -57,6 +57,7 @@
             <?php endif; ?>
 
             <form method="POST" action="/login" class="password-form">
+                <?= \App\Auth::csrfField() ?>
                 <input
                     type="email"
                     name="email"

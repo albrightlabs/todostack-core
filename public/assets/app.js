@@ -1227,18 +1227,24 @@ document.addEventListener('DOMContentLoaded', () => {
 const UserMenu = {
     init() {
         const toggle = document.getElementById('user-menu-toggle');
-        const menu = document.getElementById('user-menu');
+        const dropdown = document.getElementById('user-menu-dropdown');
 
-        if (!toggle || !menu) return;
+        if (!toggle || !dropdown) return;
 
         toggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            menu.classList.toggle('open');
+            dropdown.classList.toggle('show');
         });
 
         document.addEventListener('click', (e) => {
-            if (!menu.contains(e.target)) {
-                menu.classList.remove('open');
+            if (!dropdown.contains(e.target) && !toggle.contains(e.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                dropdown.classList.remove('show');
             }
         });
     }
@@ -1338,25 +1344,23 @@ const UsersPage = {
     },
 
     renderUser(user) {
-        const roleClass = user.role === 'admin' ? 'role-admin' : '';
+        const roleClass = user.role === 'admin' ? 'role-admin' : 'role-readonly';
         const roleLabel = user.role === 'admin' ? 'Admin' : 'Read-Only';
-        const isCurrentUser = user.id === window.CURRENT_USER_ID;
-        const lastLogin = user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : 'Never';
 
         return `
-            <div class="user-row">
-                <div class="user-info">
-                    <div class="user-email">${this.escapeHtml(user.email)}</div>
-                    <div class="user-meta">
-                        <span class="user-role ${roleClass}">${roleLabel}</span>
-                        ${user.is_super_admin ? '<span class="user-badge user-badge-super">Super Admin</span>' : ''}
-                        ${isCurrentUser ? '<span class="user-badge">You</span>' : ''}
-                        <span>Last login: ${lastLogin}</span>
+            <div class="user-card" data-user-id="${user.id}">
+                <div class="user-card-info">
+                    <span class="user-card-email">${this.escapeHtml(user.email)}</span>
+                    <div class="user-card-meta">
+                        <span class="role-badge ${roleClass}">${roleLabel}</span>
+                        ${user.is_super_admin ? '<span class="super-admin-badge">Super Admin</span>' : ''}
                     </div>
                 </div>
-                <div class="user-actions">
-                    <button type="button" class="btn btn-secondary btn-sm edit-user-btn" data-user-id="${user.id}">Edit</button>
-                    ${!user.is_super_admin ? `<button type="button" class="btn btn-danger btn-sm delete-user-btn" data-user-id="${user.id}">Delete</button>` : ''}
+                <div class="user-card-actions">
+                    ${!user.is_super_admin ? `
+                        <button type="button" class="btn btn-secondary btn-sm edit-user-btn" data-user-id="${user.id}">Edit</button>
+                        <button type="button" class="btn btn-danger btn-sm delete-user-btn" data-user-id="${user.id}">Delete</button>
+                    ` : '<span class="text-muted" style="font-size: 12px;">Protected</span>'}
                 </div>
             </div>
         `;

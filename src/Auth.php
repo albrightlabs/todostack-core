@@ -6,6 +6,8 @@ namespace App;
 class Auth
 {
     private const SESSION_LIFETIME = 7200; // 2 hours
+    private const MAX_LOGIN_ATTEMPTS = 5;
+    private const LOCKOUT_DURATION = 900; // 15 minutes
     private const SESSION_KEYS = [
         'user_id',
         'user_email',
@@ -23,9 +25,15 @@ class Auth
             return;
         }
 
+        // Detect HTTPS for secure cookie flag
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
+            || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
         session_set_cookie_params([
             'lifetime' => self::SESSION_LIFETIME,
             'path' => '/',
+            'secure' => $isHttps,
             'httponly' => true,
             'samesite' => 'Strict',
         ]);
@@ -53,12 +61,22 @@ class Auth
     {
         self::init();
 
+        // Check rate limiting
+        $ip = self::getClientIp();
+        if (self::isRateLimited($ip)) {
+            return null;
+        }
+
         $userManager = self::getUserManager();
         $user = $userManager->verifyPassword($email, $password);
 
         if ($user === null) {
+            self::recordFailedAttempt($ip);
             return null;
         }
+
+        // Clear failed attempts on successful login
+        self::clearFailedAttempts($ip);
 
         // Regenerate session ID on login for security
         session_regenerate_id(true);
@@ -73,6 +91,121 @@ class Auth
         self::regenerateCsrfToken();
 
         return $user;
+    }
+
+    public static function isRateLimited(?string $ip = null): bool
+    {
+        $ip = $ip ?? self::getClientIp();
+        $attempts = self::getFailedAttempts($ip);
+
+        if ($attempts['count'] >= self::MAX_LOGIN_ATTEMPTS) {
+            $elapsed = time() - $attempts['last_attempt'];
+            if ($elapsed < self::LOCKOUT_DURATION) {
+                return true;
+            }
+            // Lockout expired, clear attempts
+            self::clearFailedAttempts($ip);
+        }
+
+        return false;
+    }
+
+    public static function getRateLimitRemainingTime(?string $ip = null): int
+    {
+        $ip = $ip ?? self::getClientIp();
+        $attempts = self::getFailedAttempts($ip);
+
+        if ($attempts['count'] >= self::MAX_LOGIN_ATTEMPTS) {
+            $elapsed = time() - $attempts['last_attempt'];
+            $remaining = self::LOCKOUT_DURATION - $elapsed;
+            return max(0, $remaining);
+        }
+
+        return 0;
+    }
+
+    private static function getClientIp(): string
+    {
+        // Check for forwarded IP (behind proxy/load balancer)
+        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ips = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+            return trim($ips[0]);
+        }
+
+        return $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    }
+
+    private static function getRateLimitFile(): string
+    {
+        return Config::get('data_path', dirname(__DIR__) . '/data') . '/rate_limits.json';
+    }
+
+    private static function getFailedAttempts(string $ip): array
+    {
+        $file = self::getRateLimitFile();
+
+        if (!file_exists($file)) {
+            return ['count' => 0, 'last_attempt' => 0];
+        }
+
+        $data = json_decode(file_get_contents($file), true) ?? [];
+
+        // Clean up old entries while we're here
+        $data = self::cleanupRateLimits($data);
+
+        return $data[$ip] ?? ['count' => 0, 'last_attempt' => 0];
+    }
+
+    private static function recordFailedAttempt(string $ip): void
+    {
+        $file = self::getRateLimitFile();
+        $data = [];
+
+        if (file_exists($file)) {
+            $data = json_decode(file_get_contents($file), true) ?? [];
+        }
+
+        $data = self::cleanupRateLimits($data);
+
+        if (!isset($data[$ip])) {
+            $data[$ip] = ['count' => 0, 'last_attempt' => 0];
+        }
+
+        $data[$ip]['count']++;
+        $data[$ip]['last_attempt'] = time();
+
+        $dir = dirname($file);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT), LOCK_EX);
+    }
+
+    private static function clearFailedAttempts(string $ip): void
+    {
+        $file = self::getRateLimitFile();
+
+        if (!file_exists($file)) {
+            return;
+        }
+
+        $data = json_decode(file_get_contents($file), true) ?? [];
+        unset($data[$ip]);
+
+        file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT), LOCK_EX);
+    }
+
+    private static function cleanupRateLimits(array $data): array
+    {
+        $now = time();
+        foreach ($data as $ip => $attempts) {
+            // Remove entries older than lockout duration
+            if ($now - $attempts['last_attempt'] > self::LOCKOUT_DURATION) {
+                unset($data[$ip]);
+            }
+        }
+        return $data;
     }
 
     public static function logout(): void

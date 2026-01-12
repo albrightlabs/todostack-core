@@ -19,6 +19,12 @@ $branding = Config::getBranding();
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 $path = trim($requestUri, '/');
 
+// Handle API requests
+if (str_starts_with($path, 'api/') || $path === 'api') {
+    require __DIR__ . '/api.php';
+    exit;
+}
+
 // Handle logout
 if ($path === 'logout') {
     Auth::logout();
@@ -38,14 +44,31 @@ if ($path === 'login') {
 
     // Process login form submission
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $email = $_POST['email'] ?? '';
-        $password = $_POST['password'] ?? '';
+        // Check rate limiting first
+        if (Auth::isRateLimited()) {
+            $remaining = Auth::getRateLimitRemainingTime();
+            $minutes = ceil($remaining / 60);
+            $authError = "Too many failed attempts. Please try again in {$minutes} minute(s).";
+        } elseif (!Auth::validateCsrf($_POST['csrf_token'] ?? null)) {
+            $authError = 'Invalid security token. Please try again.';
+        } else {
+            $email = $_POST['email'] ?? '';
+            $password = $_POST['password'] ?? '';
 
-        if (Auth::login($email, $password)) {
-            header('Location: /');
-            exit;
+            if (Auth::login($email, $password)) {
+                header('Location: /');
+                exit;
+            }
+
+            // Check if now rate limited after failed attempt
+            if (Auth::isRateLimited()) {
+                $remaining = Auth::getRateLimitRemainingTime();
+                $minutes = ceil($remaining / 60);
+                $authError = "Too many failed attempts. Please try again in {$minutes} minute(s).";
+            } else {
+                $authError = 'Invalid email or password. Please try again.';
+            }
         }
-        $authError = 'Invalid email or password. Please try again.';
     }
 
     // Show login page
