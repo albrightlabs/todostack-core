@@ -42,7 +42,12 @@ class UserManager
         }
 
         $this->loaded = true;
-        $this->ensureSuperAdmin();
+    }
+
+    public function hasUsers(): bool
+    {
+        $this->load();
+        return count($this->data['users']) > 0;
     }
 
     private function save(): void
@@ -57,53 +62,6 @@ class UserManager
         $json = json_encode($this->data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         file_put_contents($this->usersFile, $json, LOCK_EX);
         chmod($this->usersFile, 0600);
-    }
-
-    public function ensureSuperAdmin(): void
-    {
-        $email = Config::get('super_admin_email');
-        $hash = Config::get('super_admin_password_hash');
-
-        if (empty($email) || empty($hash)) {
-            return;
-        }
-
-        // Check if super admin already exists
-        foreach ($this->data['users'] as $user) {
-            if ($user['is_super_admin'] === true) {
-                // Update email/hash if changed
-                if ($user['email'] !== $email || $user['password_hash'] !== $hash) {
-                    $this->updateSuperAdmin($email, $hash);
-                }
-                return;
-            }
-        }
-
-        // Create super admin
-        $this->data['users'][] = [
-            'id' => uuid(),
-            'email' => $email,
-            'password_hash' => $hash,
-            'role' => 'admin',
-            'is_super_admin' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-            'last_login_at' => null,
-        ];
-        $this->save();
-    }
-
-    private function updateSuperAdmin(string $email, string $hash): void
-    {
-        foreach ($this->data['users'] as &$user) {
-            if ($user['is_super_admin'] === true) {
-                $user['email'] = $email;
-                $user['password_hash'] = $hash;
-                $user['updated_at'] = now();
-                break;
-            }
-        }
-        $this->save();
     }
 
     public function getAll(): array
@@ -140,11 +98,17 @@ class UserManager
         return null;
     }
 
-    public function create(string $email, string $password, string $role = 'readonly'): array
+    public function create(string $name, string $email, string $password, string $role = 'readonly', bool $isSuperAdmin = false): array
     {
         $this->load();
 
+        $name = trim($name);
         $email = strtolower(trim($email));
+
+        // Validate name
+        if (empty($name)) {
+            throw new \RuntimeException('Name is required');
+        }
 
         // Check for duplicate email
         if ($this->getByEmail($email) !== null) {
@@ -158,10 +122,11 @@ class UserManager
 
         $user = [
             'id' => uuid(),
+            'name' => $name,
             'email' => $email,
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
             'role' => $role,
-            'is_super_admin' => false,
+            'is_super_admin' => $isSuperAdmin,
             'created_at' => now(),
             'updated_at' => now(),
             'last_login_at' => null,
@@ -180,6 +145,14 @@ class UserManager
         foreach ($this->data['users'] as &$user) {
             if ($user['id'] === $id) {
                 // Update allowed fields
+                if (isset($data['name'])) {
+                    $name = trim($data['name']);
+                    if (empty($name)) {
+                        throw new \RuntimeException('Name is required');
+                    }
+                    $user['name'] = $name;
+                }
+
                 if (isset($data['email'])) {
                     $newEmail = strtolower(trim($data['email']));
                     // Check for duplicate (excluding current user)

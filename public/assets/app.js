@@ -1350,6 +1350,7 @@ const UsersPage = {
         return `
             <div class="user-card" data-user-id="${user.id}">
                 <div class="user-card-info">
+                    <span class="user-card-name">${this.escapeHtml(user.name || '')}</span>
                     <span class="user-card-email">${this.escapeHtml(user.email)}</span>
                     <div class="user-card-meta">
                         <span class="role-badge ${roleClass}">${roleLabel}</span>
@@ -1371,17 +1372,25 @@ const UsersPage = {
         const title = document.getElementById('user-modal-title');
         const form = document.getElementById('user-form');
         const passwordInput = document.getElementById('user-password');
+        const passwordConfirmInput = document.getElementById('user-password-confirm');
         const passwordHelp = document.getElementById('password-help');
+        const passwordMatchError = document.getElementById('password-match-error');
 
         this.editingUserId = user?.id || null;
         title.textContent = user ? 'Edit User' : 'Add User';
 
+        // Hide password match error
+        passwordMatchError.style.display = 'none';
+
         if (user) {
             document.getElementById('user-id').value = user.id;
+            document.getElementById('user-name').value = user.name || '';
             document.getElementById('user-email').value = user.email;
             document.getElementById('user-password').value = '';
+            document.getElementById('user-password-confirm').value = '';
             document.getElementById('user-role').value = user.role;
             passwordInput.required = false;
+            passwordConfirmInput.required = false;
             passwordHelp.textContent = 'Leave blank to keep current password';
 
             // Disable role change for super admin
@@ -1394,12 +1403,13 @@ const UsersPage = {
             form.reset();
             document.getElementById('user-id').value = '';
             passwordInput.required = true;
+            passwordConfirmInput.required = true;
             passwordHelp.textContent = 'Minimum 8 characters';
             document.getElementById('user-role').disabled = false;
         }
 
         modal.classList.add('show');
-        document.getElementById('user-email').focus();
+        document.getElementById('user-name').focus();
     },
 
     closeModal(modalId) {
@@ -1410,11 +1420,21 @@ const UsersPage = {
     },
 
     async saveUser() {
+        const name = document.getElementById('user-name').value.trim();
         const email = document.getElementById('user-email').value.trim();
         const password = document.getElementById('user-password').value;
+        const passwordConfirm = document.getElementById('user-password-confirm').value;
         const role = document.getElementById('user-role').value;
+        const passwordMatchError = document.getElementById('password-match-error');
 
-        const data = { email, role };
+        // Validate password confirmation
+        if (password && password !== passwordConfirm) {
+            passwordMatchError.style.display = 'block';
+            return;
+        }
+        passwordMatchError.style.display = 'none';
+
+        const data = { name, email, role };
         if (password) {
             data.password = password;
         }
@@ -1479,7 +1499,7 @@ const UsersPage = {
         if (!user) return;
 
         this.deletingUserId = userId;
-        document.getElementById('delete-user-email').textContent = user.email;
+        document.getElementById('delete-user-name').textContent = user.name || user.email;
         document.getElementById('delete-user-modal').classList.add('show');
     },
 

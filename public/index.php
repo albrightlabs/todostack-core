@@ -25,6 +25,64 @@ if (str_starts_with($path, 'api/') || $path === 'api') {
     exit;
 }
 
+// Check if setup is needed (no users exist)
+if (!Auth::hasAnyUsers() && $path !== 'setup') {
+    header('Location: /setup');
+    exit;
+}
+
+// Handle setup (first-time installation)
+if ($path === 'setup') {
+    // If users already exist, redirect to login
+    if (Auth::hasAnyUsers()) {
+        header('Location: /login');
+        exit;
+    }
+
+    $setupError = null;
+
+    // Process setup form submission
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (!Auth::validateCsrf($_POST['csrf_token'] ?? null)) {
+            $setupError = 'Invalid security token. Please try again.';
+        } else {
+            $name = trim($_POST['name'] ?? '');
+            $email = trim($_POST['email'] ?? '');
+            $password = $_POST['password'] ?? '';
+            $passwordConfirm = $_POST['password_confirm'] ?? '';
+
+            // Validate inputs
+            if (empty($name)) {
+                $setupError = 'Name is required.';
+            } elseif (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $setupError = 'A valid email address is required.';
+            } elseif (strlen($password) < 8) {
+                $setupError = 'Password must be at least 8 characters.';
+            } elseif ($password !== $passwordConfirm) {
+                $setupError = 'Passwords do not match.';
+            } else {
+                // Create the first user as super admin
+                try {
+                    $userManager = Auth::getUserManager();
+                    $userManager->create($name, $email, $password, 'admin', true);
+
+                    // Auto-login the new user
+                    Auth::login($email, $password);
+
+                    header('Location: /');
+                    exit;
+                } catch (\Exception $e) {
+                    $setupError = $e->getMessage();
+                }
+            }
+        }
+    }
+
+    // Show setup page
+    include __DIR__ . '/../templates/setup.php';
+    exit;
+}
+
 // Handle logout
 if ($path === 'logout') {
     Auth::logout();

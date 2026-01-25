@@ -10,6 +10,7 @@ class Auth
     private const LOCKOUT_DURATION = 900; // 15 minutes
     private const SESSION_KEYS = [
         'user_id',
+        'user_name',
         'user_email',
         'user_role',
         'is_super_admin',
@@ -57,6 +58,11 @@ class Auth
         return self::$userManager;
     }
 
+    public static function hasAnyUsers(): bool
+    {
+        return self::getUserManager()->hasUsers();
+    }
+
     public static function login(string $email, string $password): ?array
     {
         self::init();
@@ -82,6 +88,7 @@ class Auth
         session_regenerate_id(true);
 
         $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_name'] = $user['name'] ?? '';
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['user_role'] = $user['role'];
         $_SESSION['is_super_admin'] = $user['is_super_admin'];
@@ -308,6 +315,7 @@ class Auth
 
         return [
             'id' => $_SESSION['user_id'] ?? null,
+            'name' => $_SESSION['user_name'] ?? '',
             'email' => $_SESSION['user_email'] ?? null,
             'role' => $_SESSION['user_role'] ?? null,
             'is_super_admin' => $_SESSION['is_super_admin'] ?? false,

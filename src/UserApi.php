@@ -157,9 +157,14 @@ class UserApi
     {
         $input = getJsonInput();
 
-        $error = validateRequired($input, ['email', 'password', 'role']);
+        $error = validateRequired($input, ['name', 'email', 'password', 'role']);
         if ($error !== null) {
             jsonError($error);
+        }
+
+        // Validate name
+        if (empty(trim($input['name']))) {
+            jsonError('Name is required');
         }
 
         // Validate email format
@@ -174,6 +179,7 @@ class UserApi
 
         try {
             $user = $this->userManager->create(
+                $input['name'],
                 $input['email'],
                 $input['password'],
                 $input['role']
