@@ -5,22 +5,42 @@ namespace App;
 
 class TodoList
 {
+    private string $basePath;
+    private string $userId;
     private string $dataPath;
     private array $data;
 
-    public function __construct(string $dataPath)
+    public function __construct(string $basePath, string $userId)
     {
-        $this->dataPath = $dataPath;
+        $this->basePath = $basePath;
+        $this->userId = $userId;
+        $this->dataPath = $basePath . '/todos/' . $userId . '.json';
         $this->ensureDataDirectory();
         $this->load();
     }
 
     private function ensureDataDirectory(): void
     {
-        $dir = dirname($this->dataPath);
+        $dir = dirname($this->dataPath); // data/todos/
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
+    }
+
+    /**
+     * Get the user ID this list belongs to
+     */
+    public function getUserId(): string
+    {
+        return $this->userId;
+    }
+
+    /**
+     * Get the base data path
+     */
+    public function getBasePath(): string
+    {
+        return $this->basePath;
     }
 
     /**
@@ -276,6 +296,7 @@ class TodoList
                     'updatedAt' => $timestamp,
                     'children' => [],
                     'attachments' => [],
+                    'sentFrom' => null,
                 ];
 
                 $section['items'][] = $item;
@@ -768,5 +789,78 @@ class TodoList
         }
 
         return $preview;
+    }
+
+    // ========================================
+    // Send/Transfer Operations
+    // ========================================
+
+    /**
+     * Send (transfer) an item to another user's list
+     * Removes from current list, adds to target user's first section
+     */
+    public function sendItemToUser(string $itemId, string $targetUserId, string $senderName): ?array
+    {
+        // Find and remove item from current list
+        $item = null;
+        $sourceSectionIndex = null;
+        $sourceItemIndex = null;
+
+        foreach ($this->data['sections'] as $sIndex => $section) {
+            foreach ($section['items'] as $iIndex => $existingItem) {
+                if ($existingItem['id'] === $itemId) {
+                    $item = $existingItem;
+                    $sourceSectionIndex = $sIndex;
+                    $sourceItemIndex = $iIndex;
+                    break 2;
+                }
+            }
+        }
+
+        if ($item === null) {
+            return null;
+        }
+
+        // Remove from source list
+        array_splice($this->data['sections'][$sourceSectionIndex]['items'], $sourceItemIndex, 1);
+        $this->save();
+
+        // Add sentFrom metadata
+        $item['sentFrom'] = [
+            'userId' => $this->userId,
+            'userName' => $senderName,
+            'sentAt' => now(),
+        ];
+        $item['updatedAt'] = now();
+
+        // Reset position for target list (will be at top)
+        $item['position'] = 0;
+
+        // Load target user's list and add item
+        $targetList = new TodoList($this->basePath, $targetUserId);
+
+        // Get target's data and add to first section
+        if (!empty($targetList->data['sections'])) {
+            // Shift existing items down
+            foreach ($targetList->data['sections'][0]['items'] as &$existingItem) {
+                $existingItem['position']++;
+            }
+            unset($existingItem);
+
+            // Insert at beginning of first section
+            array_unshift($targetList->data['sections'][0]['items'], $item);
+            $targetList->save();
+        }
+
+        return $item;
+    }
+
+    /**
+     * Set full data (used for direct data manipulation)
+     */
+    public function setData(array $data): void
+    {
+        $this->data = $data;
+        $this->save();
     }
 }

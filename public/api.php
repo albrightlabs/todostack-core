@@ -21,13 +21,38 @@ $config = Config::getInstance();
 $method = getMethod();
 $path = getPath();
 
+// Helper to get viewing user ID and validate access
+function getViewingUserId(): array
+{
+    Auth::requireAuth();
+
+    $currentUserId = Auth::getCurrentUserId();
+    $viewingUserId = $_GET['user'] ?? $currentUserId;
+
+    // If viewing another user's list, validate that user exists
+    if ($viewingUserId !== $currentUserId) {
+        $userManager = Auth::getUserManager();
+        if ($userManager->getById($viewingUserId) === null) {
+            jsonError('User not found', 404);
+        }
+    }
+
+    return [
+        'currentUserId' => $currentUserId,
+        'viewingUserId' => $viewingUserId,
+        'isOwnList' => $viewingUserId === $currentUserId,
+    ];
+}
+
 // Handle file uploads (multipart/form-data) - needs special handling
 if ($method === 'POST' && preg_match('#^/api/items/([^/]+)/attachments$#', $path, $matches)) {
-    Auth::requireAuth();
+    $userInfo = getViewingUserId();
     Auth::requireCsrf();
 
-    if (!Auth::canWrite()) {
-        jsonError('Read-only access. Modifications not allowed.', 403);
+    // Check write permission (own list or admin for others)
+    $canEdit = $userInfo['isOwnList'] ? Auth::canWrite() : Auth::isAdmin();
+    if (!$canEdit) {
+        jsonError('You do not have permission to modify this list.', 403);
     }
 
     $itemId = $matches[1];
@@ -45,7 +70,7 @@ if ($method === 'POST' && preg_match('#^/api/items/([^/]+)/attachments$#', $path
     }
 
     // Add attachment to item
-    $todoList = new TodoList(Config::get('data_path'));
+    $todoList = new TodoList(Config::get('data_path'), $userInfo['viewingUserId']);
     $attachment = $todoList->addAttachment($itemId, [
         'filename' => $result['filename'],
         'url' => $result['url'],
@@ -68,8 +93,10 @@ if (str_starts_with($path, '/api/auth/') || str_starts_with($path, '/api/users')
     $userApi = new UserApi();
     $userApi->handle($method, $path);
 } else {
-    // Todo list endpoints
-    $todoList = new TodoList(Config::get('data_path'));
-    $api = new Api($todoList);
+    // Todo list endpoints - get user context
+    $userInfo = getViewingUserId();
+
+    $todoList = new TodoList(Config::get('data_path'), $userInfo['viewingUserId']);
+    $api = new Api($todoList, $userInfo['isOwnList'] ? null : $userInfo['viewingUserId']);
     $api->handle($method, $path);
 }

@@ -11,6 +11,8 @@ const TodoApp = {
         draggedSection: null,
         expandedItems: new Set(),
         currentItemAttachments: [],
+        sendableUsers: [],
+        sendingItemId: null,
     },
 
     // CSRF Token
@@ -18,6 +20,11 @@ const TodoApp = {
 
     // Write permission
     canWrite: false,
+
+    // User context
+    viewingUserId: null,
+    currentUserId: null,
+    isOwnList: true,
 
     // ========================================
     // Initialization
@@ -28,11 +35,21 @@ const TodoApp = {
         this.canWrite = window.TODOAPP_CAN_WRITE || false;
         this.state.list = window.TODOAPP_INITIAL_DATA || { settings: {}, sections: [] };
 
+        // User context
+        this.viewingUserId = window.TODOAPP_VIEWING_USER_ID || null;
+        this.currentUserId = window.TODOAPP_CURRENT_USER_ID || null;
+        this.isOwnList = window.TODOAPP_IS_OWN_LIST !== false;
+
         this.bindEvents();
         this.renderList();
 
         // Focus global input
         document.getElementById('global-input')?.focus();
+
+        // Load sendable users for send modal (only on own list)
+        if (this.isOwnList && this.canWrite) {
+            this.loadSendableUsers();
+        }
     },
 
     bindEvents() {
@@ -85,6 +102,12 @@ const TodoApp = {
             this.handleAttachmentUpload(e);
         });
 
+        // Send modal events
+        document.getElementById('send-confirm')?.addEventListener('click', () => this.confirmSendItem());
+
+        // Password modal events
+        document.getElementById('save-password')?.addEventListener('click', () => this.savePassword());
+
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
 
@@ -132,8 +155,15 @@ const TodoApp = {
             headers: { ...defaults.headers, ...options.headers },
         };
 
+        // Append user parameter when viewing another user's list
+        let url = `/api${endpoint}`;
+        if (!this.isOwnList && this.viewingUserId) {
+            const separator = endpoint.includes('?') ? '&' : '?';
+            url += `${separator}user=${this.viewingUserId}`;
+        }
+
         try {
-            const response = await fetch(`/api${endpoint}`, config);
+            const response = await fetch(url, config);
             const data = await response.json();
 
             if (!data.success) {
@@ -897,6 +927,17 @@ const TodoApp = {
                 </span>
             `);
         }
+        if (item.sentFrom) {
+            meta.push(`
+                <span class="item-sent-from" title="Sent from ${this.escapeHtml(item.sentFrom.userName)}">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                    from ${this.escapeHtml(item.sentFrom.userName)}
+                </span>
+            `);
+        }
 
         // Show children container when expanded (with inline input for adding subtasks)
         let childrenHtml = '';
@@ -928,6 +969,14 @@ const TodoApp = {
                     <span class="item-title" data-item-id="${item.id}">${this.escapeHtml(item.title)}</span>
                     ${meta.length ? `<div class="item-meta">${meta.join('')}</div>` : ''}
                 </div>
+                ${this.isOwnList && this.canWrite && this.state.sendableUsers.length > 0 ? `
+                <button type="button" class="item-send-btn" title="Send to another user">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+                ` : ''}
                 <button type="button" class="item-details-btn" title="Edit details">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="1"></circle>
@@ -1063,6 +1112,15 @@ const TodoApp = {
                 e.stopPropagation();
                 const itemId = btn.closest('.item').dataset.itemId;
                 this.toggleItemExpand(itemId);
+            });
+        });
+
+        // Item send buttons
+        document.querySelectorAll('.item-send-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const itemId = btn.closest('.item').dataset.itemId;
+                this.showSendModal(itemId);
             });
         });
 
@@ -1474,6 +1532,140 @@ const TodoApp = {
                 console.error('Cleanup error:', error);
                 alert('Cleanup failed: ' + error.message);
             });
+    },
+
+    // =========================================================================
+    // Send Item to User
+    // =========================================================================
+
+    async loadSendableUsers() {
+        try {
+            const response = await fetch('/api/users/sendable', {
+                headers: {
+                    'X-CSRF-Token': this.csrfToken
+                }
+            });
+            const data = await response.json();
+            if (data.success) {
+                this.state.sendableUsers = data.data;
+            }
+        } catch (error) {
+            console.error('Failed to load sendable users:', error);
+        }
+    },
+
+    showSendModal(itemId) {
+        const item = this.findItemById(itemId);
+        if (!item) return;
+
+        this.state.sendingItemId = itemId;
+
+        // Populate user select
+        const select = document.getElementById('send-target-user');
+        if (select) {
+            select.innerHTML = '<option value="">Choose a user...</option>' +
+                this.state.sendableUsers.map(user =>
+                    `<option value="${user.id}">${this.escapeHtml(user.name)}</option>`
+                ).join('');
+            select.value = '';
+        }
+
+        // Disable send button until user is selected
+        const confirmBtn = document.getElementById('send-confirm');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+        }
+
+        // Bind select change event
+        select?.addEventListener('change', () => {
+            if (confirmBtn) {
+                confirmBtn.disabled = !select.value;
+            }
+        });
+
+        this.openModal('send-modal');
+    },
+
+    async confirmSendItem() {
+        const targetUserId = document.getElementById('send-target-user')?.value;
+        if (!targetUserId || !this.state.sendingItemId) return;
+
+        const item = this.findItemById(this.state.sendingItemId);
+        if (!item) return;
+
+        const result = await this.api(`/items/${this.state.sendingItemId}/send`, {
+            method: 'POST',
+            body: JSON.stringify({ targetUserId }),
+        });
+
+        if (result) {
+            this.closeModal('send-modal');
+            this.state.sendingItemId = null;
+
+            // Show success message
+            const targetUser = this.state.sendableUsers.find(u => u.id === targetUserId);
+            alert(`Item sent to ${targetUser?.name || 'user'}`);
+
+            // Refresh list
+            await this.refreshList();
+        }
+    },
+
+    // =========================================================================
+    // Change Password
+    // =========================================================================
+
+    showChangePasswordModal() {
+        document.getElementById('current-password').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('confirm-password').value = '';
+        document.getElementById('password-error').style.display = 'none';
+        this.openModal('password-modal');
+        document.getElementById('current-password').focus();
+    },
+
+    async savePassword() {
+        const currentPassword = document.getElementById('current-password').value;
+        const newPassword = document.getElementById('new-password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+        const errorDiv = document.getElementById('password-error');
+
+        if (newPassword.length < 8) {
+            errorDiv.textContent = 'New password must be at least 8 characters';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            errorDiv.textContent = 'Passwords do not match';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': this.csrfToken
+                },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                this.closeModal('password-modal');
+                alert('Password changed successfully');
+            } else {
+                errorDiv.textContent = data.error || 'Failed to change password';
+                errorDiv.style.display = 'block';
+            }
+        } catch (error) {
+            errorDiv.textContent = 'Failed to change password';
+            errorDiv.style.display = 'block';
+        }
     },
 };
 

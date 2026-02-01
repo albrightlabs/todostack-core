@@ -13,6 +13,18 @@
                 <?= htmlspecialchars($branding['site_name']) ?>
             </a>
             <?php endif; ?>
+
+            <?php if (count($allUsers) > 1): ?>
+            <div class="user-list-selector">
+                <select id="user-list-select" onchange="if(this.value) window.location.href = this.value === '<?= htmlspecialchars($currentUser['id']) ?>' ? '/' : '/?user=' + this.value">
+                    <?php foreach ($allUsers as $user): ?>
+                    <option value="<?= htmlspecialchars($user['id']) ?>" <?= $user['id'] === $viewingUserId ? 'selected' : '' ?>>
+                        <?= $user['id'] === $currentUser['id'] ? 'My List' : htmlspecialchars($user['name'] ?: $user['email']) ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php endif; ?>
         </div>
         <div class="header-right">
             <?php if ($branding['external_link_url']): ?>
@@ -64,6 +76,13 @@
                         Clean Up Uploads
                     </a>
                     <?php endif; ?>
+                    <a href="#" class="user-menu-item" onclick="event.preventDefault(); TodoApp.showChangePasswordModal();">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        Change Password
+                    </a>
                     <a href="/logout" class="user-menu-item user-menu-item-danger">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -77,6 +96,19 @@
         </div>
     </div>
 </header>
+
+<?php if (!$isOwnList): ?>
+<div class="viewing-indicator">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+    </svg>
+    Viewing <?= htmlspecialchars($viewingUser['name'] ?: $viewingUser['email']) ?>'s list
+    <?php if (!$canWrite): ?>
+    <span class="readonly-badge">(Read-only)</span>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <div class="app">
 
@@ -260,9 +292,81 @@
     </div>
 </div>
 
+<!-- Send Item Modal -->
+<div class="modal-overlay" id="send-modal">
+    <div class="modal modal-sm">
+        <div class="modal-header">
+            <h2 class="modal-title">Send Item</h2>
+            <button type="button" class="btn btn-icon modal-close" data-close="send-modal">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p class="send-modal-description">Send this item to another user's list:</p>
+            <div class="form-group">
+                <label class="form-label">Select User</label>
+                <select class="form-select" id="send-target-user">
+                    <option value="">Choose a user...</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" data-close="send-modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="send-confirm" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal-overlay" id="password-modal">
+    <div class="modal modal-sm">
+        <div class="modal-header">
+            <h2 class="modal-title">Change Password</h2>
+            <button type="button" class="btn btn-icon modal-close" data-close="password-modal">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Current Password</label>
+                <input type="password" class="form-input" id="current-password" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">New Password</label>
+                <input type="password" class="form-input" id="new-password" required>
+                <span class="form-help">Minimum 8 characters</span>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Confirm New Password</label>
+                <input type="password" class="form-input" id="confirm-password" required>
+            </div>
+            <div id="password-error" class="form-error" style="display: none;"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" data-close="password-modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-password">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Initial data for JavaScript -->
 <script>
     window.TODOAPP_INITIAL_DATA = <?= json_encode($list, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     window.TODOAPP_CSRF_TOKEN = <?= json_encode($csrfToken) ?>;
     window.TODOAPP_CAN_WRITE = <?= json_encode($canWrite) ?>;
+    window.TODOAPP_VIEWING_USER_ID = <?= json_encode($viewingUserId) ?>;
+    window.TODOAPP_CURRENT_USER_ID = <?= json_encode($currentUser['id']) ?>;
+    window.TODOAPP_IS_OWN_LIST = <?= json_encode($isOwnList) ?>;
 </script>

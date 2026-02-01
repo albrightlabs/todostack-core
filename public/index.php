@@ -139,6 +139,7 @@ Auth::requireAuth();
 
 // Get current user for templates
 $currentUser = Auth::getCurrentUser();
+$currentUserId = Auth::getCurrentUserId();
 $csrfToken = Auth::getCsrfToken();
 
 // Handle users management page (admin only)
@@ -163,23 +164,55 @@ if ($path === 'users') {
     exit;
 }
 
-// Initialize todo list
-$todoList = new TodoList(Config::get('data_path'));
+// Determine which user's list to view
+$viewingUserId = $_GET['user'] ?? $currentUserId;
+$userManager = Auth::getUserManager();
+
+// Validate the viewing user exists
+$viewingUser = null;
+if ($viewingUserId !== $currentUserId) {
+    $viewingUser = $userManager->getById($viewingUserId);
+    if ($viewingUser === null) {
+        // User not found, redirect to own list
+        header('Location: /');
+        exit;
+    }
+} else {
+    $viewingUser = $currentUser;
+}
+
+$isOwnList = $viewingUserId === $currentUserId;
+
+// Determine write permissions
+// Own list: use normal canWrite check
+// Other's list: require admin role
+$canWrite = $isOwnList ? Auth::canWrite() : Auth::isAdmin();
+
+// Load all users for the user selector dropdown
+$allUsers = $userManager->getAll();
+
+// Initialize todo list for the viewing user
+$todoList = new TodoList(Config::get('data_path'), $viewingUserId);
 
 // Get initial data
 $list = $todoList->getList();
 
 // Page data
-$pageTitle = 'To-Do List - ' . $branding['site_name'];
+$pageTitle = $isOwnList
+    ? 'My To-Do List - ' . $branding['site_name']
+    : ($viewingUser['name'] ?: $viewingUser['email']) . "'s List - " . $branding['site_name'];
 
 // Render the app
-$canWrite = Auth::canWrite();
 $content = render('app', [
     'csrfToken' => $csrfToken,
     'list' => $list,
     'branding' => $branding,
     'currentUser' => $currentUser,
     'canWrite' => $canWrite,
+    'viewingUserId' => $viewingUserId,
+    'viewingUser' => $viewingUser,
+    'isOwnList' => $isOwnList,
+    'allUsers' => $allUsers,
 ]);
 
 echo render('layout', [

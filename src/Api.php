@@ -6,10 +6,14 @@ namespace App;
 class Api
 {
     private TodoList $todoList;
+    private ?string $viewingUserId;
+    private string $currentUserId;
 
-    public function __construct(TodoList $todoList)
+    public function __construct(TodoList $todoList, ?string $viewingUserId = null)
     {
         $this->todoList = $todoList;
+        $this->viewingUserId = $viewingUserId;
+        $this->currentUserId = Auth::getCurrentUserId() ?? '';
     }
 
     /**
@@ -27,9 +31,14 @@ class Api
         if (in_array($method, ['POST', 'PUT', 'DELETE'])) {
             Auth::requireCsrf();
 
-            // Check write permission (admins only)
-            if (!Auth::canWrite()) {
-                jsonError('Read-only access. Modifications not allowed.', 403);
+            // Check write permission
+            // For own list: use normal canWrite() check
+            // For other's list: require admin role
+            $isOwnList = $this->viewingUserId === null || $this->viewingUserId === $this->currentUserId;
+            $canEdit = $isOwnList ? Auth::canWrite() : Auth::isAdmin();
+
+            if (!$canEdit) {
+                jsonError('You do not have permission to modify this list.', 403);
             }
         }
 
@@ -59,6 +68,7 @@ class Api
             $method === 'DELETE' && preg_match('#^/items/([^/]+)$#', $path, $m) => $this->deleteItem($m[1]),
             $method === 'PUT' && preg_match('#^/items/([^/]+)/toggle$#', $path, $m) => $this->toggleItem($m[1]),
             $method === 'PUT' && preg_match('#^/items/([^/]+)/move$#', $path, $m) => $this->moveItem($m[1]),
+            $method === 'POST' && preg_match('#^/items/([^/]+)/send$#', $path, $m) => $this->sendItem($m[1]),
 
             // Child items
             $method === 'POST' && preg_match('#^/items/([^/]+)/children$#', $path, $m) => $this->addChild($m[1]),
@@ -229,6 +239,49 @@ class Api
         }
 
         jsonSuccess($item);
+    }
+
+    private function sendItem(string $id): void
+    {
+        $input = getJsonInput();
+        $error = validateRequired($input, ['targetUserId']);
+        if ($error !== null) {
+            jsonError($error);
+        }
+
+        $targetUserId = $input['targetUserId'];
+
+        // Validate target user exists
+        $userManager = Auth::getUserManager();
+        $targetUser = $userManager->getById($targetUserId);
+        if ($targetUser === null) {
+            jsonError('Target user not found', 404);
+        }
+
+        // Cannot send to self
+        if ($targetUserId === $this->currentUserId) {
+            jsonError('Cannot send item to yourself', 400);
+        }
+
+        // Get current user's name for the sentFrom metadata
+        $currentUser = Auth::getCurrentUser();
+        $senderName = $currentUser['name'] ?: $currentUser['email'];
+
+        // Perform the transfer
+        $item = $this->todoList->sendItemToUser($id, $targetUserId, $senderName);
+
+        if ($item === null) {
+            jsonError('Item not found', 404);
+        }
+
+        jsonSuccess([
+            'sent' => true,
+            'item' => $item,
+            'targetUser' => [
+                'id' => $targetUser['id'],
+                'name' => $targetUser['name'] ?: $targetUser['email'],
+            ],
+        ]);
     }
 
     // ========================================

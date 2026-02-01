@@ -1890,3 +1890,138 @@ body {
     color: var(--text-muted);
     margin-top: 12px;
 }
+
+/* ========================================
+   User List Selector
+======================================== */
+
+.user-list-selector {
+    margin-left: 16px;
+}
+
+.user-list-selector select {
+    padding: 6px 28px 6px 10px;
+    font-size: 13px;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: var(--header-text);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.7)' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
+
+.user-list-selector select:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.user-list-selector select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.user-list-selector select option {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* ========================================
+   Viewing Indicator
+======================================== */
+
+.viewing-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--bg-active);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.viewing-indicator svg {
+    color: var(--text-muted);
+}
+
+.readonly-badge {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+/* ========================================
+   Send Item Button & Indicator
+======================================== */
+
+.item-send-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+    opacity: 0;
+}
+
+.item:hover .item-send-btn {
+    opacity: 1;
+}
+
+.item-send-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--accent-color);
+}
+
+.item-sent-from {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
+.item-sent-from svg {
+    opacity: 0.8;
+}
+
+/* ========================================
+   Send Modal
+======================================== */
+
+.send-modal-description {
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+#send-confirm svg {
+    margin-right: 2px;
+}
+
+@media (max-width: 600px) {
+    .user-list-selector {
+        margin-left: 12px;
+    }
+
+    .user-list-selector select {
+        max-width: 140px;
+    }
+
+    .item-send-btn {
+        opacity: 1;
+    }
+}

@@ -52,7 +52,7 @@ class Config
             'feature_dark_mode' => true,
 
             // Paths
-            'data_path' => dirname(__DIR__) . '/data/todos.json',
+            'data_path' => dirname(__DIR__) . '/data',
         ];
     }
 
