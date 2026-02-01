@@ -203,6 +203,8 @@ Override these in `custom.css` for complete theme control:
 
 ## Production Deployment
 
+For detailed deployment instructions including Laravel Forge setup and data persistence strategies, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ### Apache
 
 Point your document root to the `public/` directory. The included `.htaccess` file handles URL rewriting.

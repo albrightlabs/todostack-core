@@ -10,10 +10,14 @@ const TodoApp = {
         draggedItem: null,
         draggedSection: null,
         expandedItems: new Set(),
+        currentItemAttachments: [],
     },
 
     // CSRF Token
     csrfToken: '',
+
+    // Write permission
+    canWrite: false,
 
     // ========================================
     // Initialization
@@ -21,6 +25,7 @@ const TodoApp = {
 
     init() {
         this.csrfToken = window.TODOAPP_CSRF_TOKEN || '';
+        this.canWrite = window.TODOAPP_CAN_WRITE || false;
         this.state.list = window.TODOAPP_INITIAL_DATA || { settings: {}, sections: [] };
 
         this.bindEvents();
@@ -71,6 +76,14 @@ const TodoApp = {
 
         // Confirm modal
         document.getElementById('confirm-delete')?.addEventListener('click', () => this.executeDelete());
+
+        // Attachment events
+        document.getElementById('add-attachment-btn')?.addEventListener('click', () => {
+            document.getElementById('attachment-upload')?.click();
+        });
+        document.getElementById('attachment-upload')?.addEventListener('change', (e) => {
+            this.handleAttachmentUpload(e);
+        });
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
@@ -450,6 +463,137 @@ const TodoApp = {
     },
 
     // ========================================
+    // Attachment Operations
+    // ========================================
+
+    async handleAttachmentUpload(e) {
+        const files = e.target.files;
+        if (!files || files.length === 0 || !this.state.currentItem) return;
+
+        for (const file of files) {
+            await this.uploadAttachment(file);
+        }
+
+        // Clear the input
+        e.target.value = '';
+    },
+
+    async uploadAttachment(file) {
+        if (!this.state.currentItem) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(`/api/items/${this.state.currentItem.id}/attachments`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': this.csrfToken,
+                },
+                body: formData,
+            });
+
+            const data = await response.json();
+
+            if (!data.success) {
+                console.error('Upload failed:', data.error);
+                alert(data.error || 'Upload failed');
+                return null;
+            }
+
+            // Refresh list and re-render attachments
+            await this.refreshList();
+            this.renderModalAttachments();
+            return data.data;
+        } catch (error) {
+            console.error('Upload failed:', error);
+            alert('Upload failed');
+            return null;
+        }
+    },
+
+    async deleteAttachment(attachmentId) {
+        if (!this.state.currentItem) return;
+
+        const result = await this.api(`/items/${this.state.currentItem.id}/attachments/${attachmentId}`, {
+            method: 'DELETE',
+        });
+
+        if (result) {
+            await this.refreshList();
+            this.renderModalAttachments();
+        }
+    },
+
+    renderModalAttachments() {
+        const container = document.getElementById('modal-attachments-list');
+        if (!container || !this.state.currentItem) return;
+
+        // Get fresh item data from state
+        const freshItem = this.findItemById(this.state.currentItem.id);
+        if (freshItem) {
+            this.state.currentItem = freshItem;
+        }
+
+        const attachments = this.state.currentItem.attachments || [];
+
+        if (attachments.length === 0) {
+            container.innerHTML = '<div class="attachments-empty">No attachments</div>';
+            return;
+        }
+
+        container.innerHTML = attachments.map(attachment => {
+            const isImage = attachment.type === 'image';
+            const thumbnailHtml = isImage
+                ? `<img src="${this.escapeHtml(attachment.url)}" alt="" class="attachment-thumbnail" loading="lazy">`
+                : `<div class="attachment-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                   </div>`;
+
+            return `
+                <div class="attachment-item" data-attachment-id="${attachment.id}">
+                    ${thumbnailHtml}
+                    <div class="attachment-info">
+                        <a href="${this.escapeHtml(attachment.url)}" target="_blank" class="attachment-name">${this.escapeHtml(attachment.filename)}</a>
+                        <div class="attachment-meta">${this.formatFileSize(attachment.size)}</div>
+                    </div>
+                    ${this.canWrite ? `
+                        <div class="attachment-actions">
+                            <button type="button" class="btn btn-icon btn-sm attachment-delete" title="Delete">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+
+        // Bind delete events
+        container.querySelectorAll('.attachment-delete').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const item = e.target.closest('.attachment-item');
+                const attachmentId = item.dataset.attachmentId;
+                if (confirm('Delete this attachment?')) {
+                    this.deleteAttachment(attachmentId);
+                }
+            });
+        });
+    },
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + units[i];
+    },
+
+    // ========================================
     // Input Handlers
     // ========================================
 
@@ -528,6 +672,7 @@ const TodoApp = {
         document.getElementById('modal-updated').textContent = `Updated: ${updatedDate}`;
 
         this.renderModalChildren();
+        this.renderModalAttachments();
         this.openModal('item-modal');
     },
 
@@ -738,6 +883,17 @@ const TodoApp = {
                         <path d="M9 18l6-6-6-6"></path>
                     </svg>
                     ${childCount}
+                </span>
+            `);
+        }
+        if (item.attachments && item.attachments.length > 0) {
+            const attachCount = item.attachments.length;
+            meta.push(`
+                <span class="item-attachment-count" title="${attachCount} attachment${attachCount !== 1 ? 's' : ''}">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                    </svg>
+                    ${attachCount}
                 </span>
             `);
         }
@@ -1202,6 +1358,123 @@ const TodoApp = {
 
         requestAnimationFrame(animate);
     },
+
+    // =========================================================================
+    // Cleanup Uploads
+    // =========================================================================
+
+    showCleanupModal() {
+        fetch('/api/cleanup-uploads', {
+            headers: {
+                'X-CSRF-Token': window.TODOAPP_CSRF_TOKEN || ''
+            }
+        })
+            .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    this.displayCleanupModal(data.data);
+                } else {
+                    alert('Failed to analyze uploads: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Cleanup error:', error);
+                alert('Failed to analyze uploads: ' + error.message);
+            });
+    },
+
+    displayCleanupModal(data) {
+        let overlay = document.getElementById('cleanup-modal-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'cleanup-modal-overlay';
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML =
+                '<div class="modal modal-sm">' +
+                    '<div class="modal-header">' +
+                        '<h3 class="modal-title">Clean Up Uploads</h3>' +
+                        '<button type="button" class="btn btn-icon modal-close" onclick="TodoApp.closeCleanupModal()">' +
+                            '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+                                '<line x1="18" y1="6" x2="6" y2="18"></line>' +
+                                '<line x1="6" y1="6" x2="18" y2="18"></line>' +
+                            '</svg>' +
+                        '</button>' +
+                    '</div>' +
+                    '<div class="modal-body" id="cleanup-modal-body"></div>' +
+                '</div>';
+            document.body.appendChild(overlay);
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) this.closeCleanupModal();
+            });
+        }
+
+        const body = document.getElementById('cleanup-modal-body');
+
+        if (data.orphaned_count === 0) {
+            body.innerHTML =
+                '<div class="cleanup-summary">' +
+                    '<p><strong>No unused files found.</strong></p>' +
+                    '<p class="text-muted">All ' + data.total_files + ' uploaded files are referenced in your content.</p>' +
+                '</div>' +
+                '<div class="modal-actions">' +
+                    '<button type="button" class="btn btn-secondary" onclick="TodoApp.closeCleanupModal()">Close</button>' +
+                '</div>';
+        } else {
+            const fileList = data.orphaned_files.map(f => '<li>' + this.escapeHtml(f) + '</li>').join('');
+            body.innerHTML =
+                '<div class="cleanup-summary">' +
+                    '<p><strong>' + data.orphaned_count + ' unused file' + (data.orphaned_count !== 1 ? 's' : '') + ' found</strong></p>' +
+                    '<p class="text-muted">These files are in the uploads folder but not referenced in any content:</p>' +
+                    '<ul class="cleanup-file-list">' + fileList + '</ul>' +
+                    '<p class="cleanup-stats">' +
+                        'Total uploads: ' + data.total_files + ' &bull; ' +
+                        'Referenced: ' + data.referenced_files + ' &bull; ' +
+                        'Orphaned: ' + data.orphaned_count +
+                    '</p>' +
+                '</div>' +
+                '<div class="modal-actions">' +
+                    '<button type="button" class="btn btn-secondary" onclick="TodoApp.closeCleanupModal()">Cancel</button>' +
+                    '<button type="button" class="btn btn-danger" onclick="TodoApp.executeCleanup()">Delete ' + data.orphaned_count + ' File' + (data.orphaned_count !== 1 ? 's' : '') + '</button>' +
+                '</div>';
+        }
+
+        overlay.classList.add('show');
+    },
+
+    closeCleanupModal() {
+        const overlay = document.getElementById('cleanup-modal-overlay');
+        if (overlay) overlay.classList.remove('show');
+    },
+
+    executeCleanup() {
+        fetch('/api/cleanup-uploads', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': window.TODOAPP_CSRF_TOKEN || ''
+            }
+        })
+            .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    this.closeCleanupModal();
+                    const count = data.data.deleted_count || 0;
+                    alert('Successfully deleted ' + count + ' file' + (count !== 1 ? 's' : '') + '.');
+                } else {
+                    alert('Cleanup failed: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Cleanup error:', error);
+                alert('Cleanup failed: ' + error.message);
+            });
+    },
 };
 
 // Initialize on DOM ready
@@ -1247,6 +1520,17 @@ const UserMenu = {
                 dropdown.classList.remove('show');
             }
         });
+
+        // Cleanup uploads button
+        const cleanupBtn = document.getElementById('cleanup-uploads-btn');
+        if (cleanupBtn) {
+            cleanupBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropdown.classList.remove('show');
+                TodoApp.showCleanupModal();
+            });
+        }
     }
 };
 

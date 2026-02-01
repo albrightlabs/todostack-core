@@ -23,6 +23,7 @@
 <body>
     <?= $content ?>
     <script src="/assets/app.js"></script>
+    <script src="/assets/search.js"></script>
     <?php if (file_exists(__DIR__ . '/../public/assets/custom.js')): ?>
     <script src="/assets/custom.js"></script>
     <?php endif; ?>

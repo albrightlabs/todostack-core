@@ -38,6 +38,9 @@ class Api
             // List
             $method === 'GET' && $path === '/list' => $this->getList(),
 
+            // Search
+            $method === 'GET' && $path === '/search' => $this->handleSearch(),
+
             // Settings
             $method === 'PUT' && $path === '/settings' => $this->updateSettings(),
 
@@ -63,6 +66,13 @@ class Api
             $method === 'PUT' && preg_match('#^/items/([^/]+)/children/([^/]+)/toggle$#', $path, $m) => $this->toggleChild($m[1], $m[2]),
             $method === 'DELETE' && preg_match('#^/items/([^/]+)/children/([^/]+)$#', $path, $m) => $this->deleteChild($m[1], $m[2]),
 
+            // Attachments
+            $method === 'DELETE' && preg_match('#^/items/([^/]+)/attachments/([^/]+)$#', $path, $m) => $this->deleteAttachment($m[1], $m[2]),
+
+            // Cleanup uploads (admin only)
+            $method === 'GET' && $path === '/cleanup-uploads' => $this->analyzeUploads(),
+            $method === 'POST' && $path === '/cleanup-uploads' => $this->cleanupUploads(),
+
             default => jsonError('Not found', 404),
         };
     }
@@ -74,6 +84,17 @@ class Api
     private function getList(): void
     {
         jsonSuccess($this->todoList->getList());
+    }
+
+    private function handleSearch(): void
+    {
+        $query = $_GET['q'] ?? '';
+        if (empty(trim($query))) {
+            jsonError('Query required', 400);
+        }
+
+        $results = $this->todoList->search($query);
+        jsonSuccess($results);
     }
 
     private function updateSettings(): void
@@ -261,5 +282,56 @@ class Api
         }
 
         jsonSuccess(['deleted' => true]);
+    }
+
+    // ========================================
+    // Attachment Handlers
+    // ========================================
+
+    private function deleteAttachment(string $itemId, string $attachmentId): void
+    {
+        // Get the attachment to find the file URL
+        $attachment = $this->todoList->getAttachment($itemId, $attachmentId);
+
+        if ($attachment === null) {
+            jsonError('Attachment not found', 404);
+        }
+
+        // Remove from item
+        if (!$this->todoList->removeAttachment($itemId, $attachmentId)) {
+            jsonError('Failed to remove attachment', 500);
+        }
+
+        // Note: File is left on disk for orphan cleanup
+
+        jsonSuccess(['deleted' => true]);
+    }
+
+    // ========================================
+    // Upload Cleanup Handlers
+    // ========================================
+
+    private function analyzeUploads(): void
+    {
+        // Only admins can analyze uploads
+        if (!Auth::isAdmin()) {
+            jsonError('Admin access required', 403);
+        }
+
+        $upload = new Upload();
+        $analysis = $upload->analyzeUploads();
+        jsonSuccess($analysis);
+    }
+
+    private function cleanupUploads(): void
+    {
+        // Only admins can cleanup uploads
+        if (!Auth::isAdmin()) {
+            jsonError('Admin access required', 403);
+        }
+
+        $upload = new Upload();
+        $result = $upload->cleanupOrphanedUploads();
+        jsonSuccess($result);
     }
 }

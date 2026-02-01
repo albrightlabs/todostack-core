@@ -23,7 +23,6 @@
                 <div class="user-menu-info">
                     <span class="user-menu-name"><?= htmlspecialchars($currentUser['name'] ?? '') ?></span>
                     <span class="user-menu-email"><?= htmlspecialchars($currentUser['email'] ?? '') ?></span>
-                    <span class="user-menu-role role-<?= htmlspecialchars($currentUser['role'] ?? 'readonly') ?>"><?= $currentUser['role'] === 'admin' ? 'Admin' : 'Read-Only' ?></span>
                 </div>
                 <a href="/users" class="user-menu-item">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

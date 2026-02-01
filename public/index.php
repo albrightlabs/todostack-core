@@ -173,11 +173,13 @@ $list = $todoList->getList();
 $pageTitle = 'To-Do List - ' . $branding['site_name'];
 
 // Render the app
+$canWrite = Auth::canWrite();
 $content = render('app', [
     'csrfToken' => $csrfToken,
     'list' => $list,
     'branding' => $branding,
     'currentUser' => $currentUser,
+    'canWrite' => $canWrite,
 ]);
 
 echo render('layout', [

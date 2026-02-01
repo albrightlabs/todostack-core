@@ -13,6 +13,10 @@
 /public/assets/custom.css
 /public/assets/custom.js
 
+# Uploads (user uploaded files)
+/public/uploads/*
+!/public/uploads/.gitkeep
+
 # IDE
 .idea/
 .vscode/

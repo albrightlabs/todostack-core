@@ -23,6 +23,12 @@
                 <?= htmlspecialchars($branding['external_link_name']) ?> &rarr;
             </a>
             <?php endif; ?>
+            <?php if ($canWrite): ?>
+            <span class="admin-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                Admin
+            </span>
+            <?php endif; ?>
             <button type="button" class="btn btn-icon" id="settings-btn" title="Settings">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"></circle>
@@ -39,7 +45,6 @@
                 <div class="user-menu-dropdown" id="user-menu-dropdown">
                     <div class="user-menu-info">
                         <span class="user-menu-email"><?= htmlspecialchars($currentUser['email'] ?? '') ?></span>
-                        <span class="user-menu-role role-<?= htmlspecialchars($currentUser['role'] ?? 'readonly') ?>"><?= $currentUser['role'] === 'admin' ? 'Admin' : 'Read-Only' ?></span>
                     </div>
                     <?php if ($currentUser['role'] === 'admin'): ?>
                     <a href="/users" class="user-menu-item">
@@ -50,6 +55,13 @@
                             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                         </svg>
                         Manage Users
+                    </a>
+                    <a href="#" class="user-menu-item" onclick="event.preventDefault(); TodoApp.showCleanupModal();">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        Clean Up Uploads
                     </a>
                     <?php endif; ?>
                     <a href="/logout" class="user-menu-item user-menu-item-danger">
@@ -149,6 +161,22 @@
                 </div>
             </div>
 
+            <div class="modal-attachments">
+                <div class="modal-attachments-header">
+                    <span class="form-label">Attachments</span>
+                </div>
+                <div id="modal-attachments-list" class="attachments-list"></div>
+                <?php if ($canWrite): ?>
+                <input type="file" id="attachment-upload" hidden multiple>
+                <button type="button" class="btn btn-secondary btn-sm" id="add-attachment-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                    </svg>
+                    Add attachment
+                </button>
+                <?php endif; ?>
+            </div>
+
             <div class="modal-meta">
                 <span id="modal-created"></span>
                 <span id="modal-updated"></span>
@@ -236,4 +264,5 @@
 <script>
     window.TODOAPP_INITIAL_DATA = <?= json_encode($list, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     window.TODOAPP_CSRF_TOKEN = <?= json_encode($csrfToken) ?>;
+    window.TODOAPP_CAN_WRITE = <?= json_encode($canWrite) ?>;
 </script>

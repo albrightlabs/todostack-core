@@ -275,6 +275,7 @@ class TodoList
                     'createdAt' => $timestamp,
                     'updatedAt' => $timestamp,
                     'children' => [],
+                    'attachments' => [],
                 ];
 
                 $section['items'][] = $item;
@@ -580,5 +581,192 @@ class TodoList
             }
         }
         return false;
+    }
+
+    // ========================================
+    // Attachment Operations
+    // ========================================
+
+    /**
+     * Add an attachment to an item
+     */
+    public function addAttachment(string $itemId, array $attachment): ?array
+    {
+        foreach ($this->data['sections'] as &$section) {
+            foreach ($section['items'] as &$item) {
+                if ($item['id'] === $itemId) {
+                    // Initialize attachments array if not exists
+                    if (!isset($item['attachments'])) {
+                        $item['attachments'] = [];
+                    }
+
+                    // Create attachment record
+                    $attachmentRecord = [
+                        'id' => uuid(),
+                        'filename' => $attachment['filename'] ?? 'unnamed',
+                        'url' => $attachment['url'],
+                        'size' => $attachment['size'] ?? 0,
+                        'type' => $attachment['type'] ?? 'document',
+                        'uploadedAt' => now(),
+                    ];
+
+                    $item['attachments'][] = $attachmentRecord;
+                    $item['updatedAt'] = now();
+                    $this->save();
+
+                    return $attachmentRecord;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Remove an attachment from an item
+     */
+    public function removeAttachment(string $itemId, string $attachmentId): bool
+    {
+        foreach ($this->data['sections'] as &$section) {
+            foreach ($section['items'] as &$item) {
+                if ($item['id'] === $itemId) {
+                    if (!isset($item['attachments'])) {
+                        return false;
+                    }
+
+                    $originalCount = count($item['attachments']);
+                    $item['attachments'] = array_values(array_filter(
+                        $item['attachments'],
+                        fn($a) => $a['id'] !== $attachmentId
+                    ));
+
+                    // Check if anything was removed
+                    if (count($item['attachments']) === $originalCount) {
+                        return false;
+                    }
+
+                    $item['updatedAt'] = now();
+                    $this->save();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get an attachment by ID from an item
+     */
+    public function getAttachment(string $itemId, string $attachmentId): ?array
+    {
+        foreach ($this->data['sections'] as $section) {
+            foreach ($section['items'] as $item) {
+                if ($item['id'] === $itemId) {
+                    foreach ($item['attachments'] ?? [] as $attachment) {
+                        if ($attachment['id'] === $attachmentId) {
+                            return $attachment;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    // ========================================
+    // Search Operations
+    // ========================================
+
+    /**
+     * Search items by title and description
+     */
+    public function search(string $query, int $limit = 20): array
+    {
+        $query = trim($query);
+        if (strlen($query) < 2) {
+            return [];
+        }
+
+        $queryLower = mb_strtolower($query);
+        $results = [];
+
+        foreach ($this->data['sections'] as $section) {
+            $sectionTitle = $section['title'] ?: 'Tasks';
+
+            foreach ($section['items'] ?? [] as $item) {
+                $relevance = 0;
+                $preview = null;
+
+                $titleLower = mb_strtolower($item['title']);
+                $descLower = mb_strtolower($item['description'] ?? '');
+
+                // Check title match
+                if (mb_strpos($titleLower, $queryLower) !== false) {
+                    $relevance += 100;
+                    if ($titleLower === $queryLower) {
+                        $relevance += 50; // Exact match bonus
+                    }
+                }
+
+                // Check description match
+                if (!empty($item['description']) && mb_strpos($descLower, $queryLower) !== false) {
+                    $relevance += 10;
+                    // Generate preview around match
+                    $preview = $this->generatePreview($item['description'], $query);
+                }
+
+                // Check child items
+                foreach ($item['children'] ?? [] as $child) {
+                    $childTitleLower = mb_strtolower($child['title']);
+                    if (mb_strpos($childTitleLower, $queryLower) !== false) {
+                        $relevance += 5;
+                    }
+                }
+
+                if ($relevance > 0) {
+                    $results[] = [
+                        'id' => $item['id'],
+                        'title' => $item['title'],
+                        'sectionTitle' => $sectionTitle,
+                        'preview' => $preview,
+                        'completed' => $item['completed'] ?? false,
+                        'relevance' => $relevance,
+                    ];
+                }
+            }
+        }
+
+        // Sort by relevance (highest first)
+        usort($results, fn($a, $b) => $b['relevance'] <=> $a['relevance']);
+
+        // Limit results
+        return array_slice($results, 0, $limit);
+    }
+
+    /**
+     * Generate a preview snippet around the search match
+     */
+    private function generatePreview(string $text, string $query, int $length = 150): string
+    {
+        $pos = mb_stripos($text, $query);
+        if ($pos === false) {
+            return mb_substr($text, 0, $length) . (mb_strlen($text) > $length ? '...' : '');
+        }
+
+        // Center the preview around the match
+        $start = max(0, $pos - ($length / 3));
+        $preview = mb_substr($text, $start, $length);
+
+        // Clean up whitespace
+        $preview = preg_replace('/\s+/', ' ', trim($preview));
+
+        // Add ellipsis
+        if ($start > 0) {
+            $preview = '...' . $preview;
+        }
+        if ($start + $length < mb_strlen($text)) {
+            $preview .= '...';
+        }
+
+        return $preview;
     }
 }
