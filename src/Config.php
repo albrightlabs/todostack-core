@@ -20,7 +20,7 @@ class Config
             // Site Identity
             'site_name' => 'TodoStack',
             'site_tagline' => 'Simple, fast task management',
-            'site_emoji' => '',
+            'site_emoji' => '✅',
             'site_url' => '',
 
             // Branding - Images
