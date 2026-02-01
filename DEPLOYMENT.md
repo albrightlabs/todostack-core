@@ -1,16 +1,17 @@
 # Deployment Guide
 
-This guide covers deploying TodoStack to a production server with Laravel Forge, ensuring user accounts and todo data are preserved across deployments.
+This guide covers deploying TodoStack to a production server with Laravel Forge, ensuring user accounts and todo data are preserved across deployments with version history.
 
 ## The Problem
 
-TodoStack stores user accounts in `data/users.json` and todos in `data/todos.json`. When deploying new code, these could be overwritten. This guide solves that with a data persistence strategy.
+TodoStack stores user accounts in `data/users.json` and todos in `data/todos.json`. When deploying new code, these could be overwritten. This guide solves that with a pre-deploy sync strategy that also provides version history.
 
 ## Strategy Overview
 
-1. **User accounts** and **todo data** are gitignored (environment-specific)
-2. Data files are copied from the previous release during deployment
-3. First deploy creates empty data files (run setup wizard to create admin)
+1. **User accounts** (`data/users.json`) are gitignored and copied between releases
+2. **Todo data** (`data/todos.json`) stays in git, with server changes synced back before each deployment
+3. **Uploads** are copied between releases
+4. Automated commits use `[skip ci]` to prevent deployment loops
 
 ## Prerequisites
 
@@ -18,34 +19,50 @@ TodoStack stores user accounts in `data/users.json` and todos in `data/todos.jso
 - GitHub repository for your TodoStack instance
 - SSH access to your server
 
-## Data Persistence
+## User Accounts
 
-User accounts and todos are environment-specific. Each server has its own data.
+User accounts are environment-specific. Each server has its own users.
 
 ### How It Works
 
-- `data/users.json` and `data/todos.json` are gitignored
-- `data/_example/` provides templates for fresh installs
-- Deploy script copies data from previous release
-- First deploy creates empty files (run setup wizard to create admin)
+- `data/users.json` is gitignored
+- `data/_example/users.json` provides an empty template
+- Deploy script copies users from previous release
+- First deploy creates empty users file (run setup wizard to create admin)
 
-### No Manual Action Required
+### No Action Required
 
 This is handled automatically by the deploy script below.
 
-## Server Setup
+## Todo Data Persistence
 
-### One-Time Server Configuration
+Todo edits made on the server are synced to git before each deployment, providing version history.
 
-SSH into your server and ensure directories are ready:
+### One-Time Server Setup
+
+SSH into your server and create a persistent repo directory:
 
 ```bash
 # Replace with your domain
 DOMAIN="tasks.yourdomain.com"
 
-# The site directory is created by Forge during site setup
-# Just verify it exists
-ls -la /home/forge/$DOMAIN
+# Create repo directory
+mkdir -p /home/forge/$DOMAIN/repo
+
+# Clone your TodoStack repo
+git clone https://github.com/your-org/your-todostack.git /home/forge/$DOMAIN/repo
+
+# Set up git credentials for pushing
+git config --global credential.helper store
+
+# Create credentials file (use a GitHub Personal Access Token)
+# Format: https://USERNAME:TOKEN@github.com
+nano /home/forge/.git-credentials
+chmod 600 /home/forge/.git-credentials
+
+# Test that push works
+cd /home/forge/$DOMAIN/repo
+git fetch origin
 ```
 
 ### Deploy Script
@@ -53,9 +70,54 @@ ls -la /home/forge/$DOMAIN
 Use this as your Forge deploy script (replace `tasks.yourdomain.com` with your domain):
 
 ```bash
+# Exit early if this is an auto-sync commit (prevents loops)
+DOMAIN="tasks.yourdomain.com"
+REPO_DIR="/home/forge/$DOMAIN/repo"
+
+if [ -d "$REPO_DIR" ]; then
+    cd "$REPO_DIR"
+    git fetch origin
+    LAST_COMMIT_MSG=$(git log origin/main -1 --pretty=%B)
+    if echo "$LAST_COMMIT_MSG" | grep -q "\[skip ci\]"; then
+        echo "Auto-sync commit detected. Skipping deployment."
+        exit 0
+    fi
+fi
+
 $CREATE_RELEASE()
 
 cd $FORGE_RELEASE_DIRECTORY
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PRE-DEPLOY: Sync server todo data to git
+# ═══════════════════════════════════════════════════════════════════════════════
+CURRENT_DATA="/home/forge/$DOMAIN/current/data/todos.json"
+
+if [ -f "$CURRENT_DATA" ] && [ -d "$REPO_DIR" ]; then
+    echo "Syncing server todo data..."
+
+    cd "$REPO_DIR"
+    git fetch origin
+    git checkout main
+    git pull origin main
+
+    # Sync todos.json from current deployment to repo
+    cp "$CURRENT_DATA" "$REPO_DIR/data/todos.json"
+
+    # Check for changes and commit if any
+    if [ -n "$(git status --porcelain data/todos.json)" ]; then
+        git config user.name "TodoStack Deploy"
+        git config user.email "deploy@yourdomain.com"
+        git add data/todos.json
+        git commit -m "Auto-sync server todo data [skip ci]"
+        git push origin main
+        echo "Server todo data synced to git."
+    else
+        echo "No todo data changes to sync."
+    fi
+
+    cd $FORGE_RELEASE_DIRECTORY
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # INSTALL: Dependencies
@@ -65,30 +127,24 @@ $FORGE_COMPOSER install --no-dev --no-interaction --prefer-dist --optimize-autol
 # ═══════════════════════════════════════════════════════════════════════════════
 # SETUP: Directories and permissions
 # ═══════════════════════════════════════════════════════════════════════════════
-DOMAIN="tasks.yourdomain.com"
-
 mkdir -p data
 mkdir -p public/uploads
 chmod -R 775 data
 chmod -R 775 public/uploads
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SETUP: Data persistence (environment-specific)
+# SETUP: User data (environment-specific)
 # ═══════════════════════════════════════════════════════════════════════════════
-# Copy data from previous release (preserves users and todos across deploys)
-
+# Copy users from previous release (preserves accounts across deploys)
 PREVIOUS_USERS="/home/forge/$DOMAIN/current/data/users.json"
-PREVIOUS_TODOS="/home/forge/$DOMAIN/current/data/todos.json"
 PREVIOUS_UPLOADS="/home/forge/$DOMAIN/current/public/uploads"
 
 if [ -f "$PREVIOUS_USERS" ]; then
     cp "$PREVIOUS_USERS" data/users.json
     echo "Preserved user accounts from previous release."
-fi
-
-if [ -f "$PREVIOUS_TODOS" ]; then
-    cp "$PREVIOUS_TODOS" data/todos.json
-    echo "Preserved todos from previous release."
+elif [ -f "data/_example/users.json" ]; then
+    cp data/_example/users.json data/users.json
+    echo "Created fresh users.json from template."
 fi
 
 if [ -d "$PREVIOUS_UPLOADS" ]; then
@@ -96,38 +152,70 @@ if [ -d "$PREVIOUS_UPLOADS" ]; then
     echo "Preserved uploads from previous release."
 fi
 
-# If no previous users file, the app will show setup wizard on first visit
-
 $ACTIVATE_RELEASE()
 ```
+
+### Forge Configuration
+
+Configure Forge to ignore automated commits:
+
+1. Go to your site in Forge
+2. Navigate to Deployments
+3. Set deployment trigger to ignore commits containing `[skip ci]`
+
+This prevents the auto-sync commit from triggering another deployment.
 
 ## How It Works
 
 ### Normal Developer Workflow
 
-1. Developer commits locally: `git commit -m "Add new feature"`
+1. Developer commits locally: `git commit -m "Update feature"`
 2. Push to GitHub
 3. Forge triggers deployment
 4. Deploy script:
-   - Installs dependencies
-   - Creates data directory
-   - Copies users and todos from previous release
+   - Syncs any server todo changes to git first
+   - Pulls new code (including synced data)
+   - Preserves user accounts
    - Activates new release
+
+### Server Data Changes
+
+1. User adds/edits/completes todos via TodoStack
+2. Next deployment (from any push):
+   - Deploy script detects server changes
+   - Commits them with `[skip ci]`
+   - Pushes to GitHub (no loop triggered)
+   - Deploys the original changes
+3. Todo data is now in git with version history
 
 ### First Deployment
 
-1. Deploy runs, no previous data to copy
-2. App detects no users, shows setup wizard
-3. Create first admin account via wizard
-4. Start using TodoStack
-
-### Subsequent Deployments
-
-1. Deploy copies `users.json` and `todos.json` from previous release
-2. All user accounts and todos preserved
-3. Zero downtime with Forge's symlink strategy
+1. Deploy runs, no previous data to sync
+2. Fresh `users.json` created from template
+3. Visit site to run setup wizard and create admin account
 
 ## Troubleshooting
+
+### Todo data not syncing
+
+Check repo directory exists and has proper permissions:
+
+```bash
+ls -la /home/forge/tasks.yourdomain.com/repo
+```
+
+### Git push failing
+
+Verify credentials:
+
+```bash
+cat /home/forge/.git-credentials
+git -C /home/forge/tasks.yourdomain.com/repo fetch origin
+```
+
+### Deploy loops
+
+Ensure Forge ignores `[skip ci]` commits. Check GitHub commits to confirm the marker is present in automated commits.
 
 ### Lost user accounts after deploy
 
@@ -137,65 +225,8 @@ Check that the copy command is finding the previous users file:
 ls -la /home/forge/tasks.yourdomain.com/current/data/
 ```
 
-If the file doesn't exist, the app will show the setup wizard.
-
-### Lost todos after deploy
-
-Same check as above:
-
-```bash
-cat /home/forge/tasks.yourdomain.com/current/data/todos.json
-```
-
-### Permission errors
-
-Ensure the data directory has correct permissions:
-
-```bash
-chmod -R 775 /home/forge/tasks.yourdomain.com/current/data
-```
-
-## Alternative: Symlink Approach
-
-If you prefer to keep data completely outside deployments:
-
-```bash
-# One-time setup on server
-mkdir -p /home/forge/tasks.yourdomain.com/persistent/data
-
-# In deploy script, replace data copy with:
-rm -rf data
-ln -s /home/forge/$DOMAIN/persistent/data data
-```
-
-This keeps data entirely separate from deployments. Useful if you want to manage backups independently.
-
-## Backup Strategy
-
-Consider adding automated backups:
-
-```bash
-# Add to deploy script before $ACTIVATE_RELEASE()
-BACKUP_DIR="/home/forge/$DOMAIN/backups"
-mkdir -p "$BACKUP_DIR"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-
-if [ -f "$PREVIOUS_USERS" ]; then
-    cp "$PREVIOUS_USERS" "$BACKUP_DIR/users_$TIMESTAMP.json"
-fi
-
-if [ -f "$PREVIOUS_TODOS" ]; then
-    cp "$PREVIOUS_TODOS" "$BACKUP_DIR/todos_$TIMESTAMP.json"
-fi
-
-# Keep only last 30 backups
-ls -t "$BACKUP_DIR"/users_*.json 2>/dev/null | tail -n +31 | xargs -r rm
-ls -t "$BACKUP_DIR"/todos_*.json 2>/dev/null | tail -n +31 | xargs -r rm
-```
-
 ## Security Notes
 
-- Ensure `data/` directory has restrictive permissions (775)
-- The `.htaccess` in `data/` prevents direct web access
-- Consider encrypting backups if they contain sensitive data
-- Regularly audit user accounts and remove inactive users
+- Keep `.git-credentials` permissions at 600
+- Use a GitHub PAT with minimal permissions (repo access only)
+- Consider using deploy keys instead of PATs for tighter security
