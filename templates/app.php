@@ -353,6 +353,7 @@
                 <input type="password" class="form-input" id="confirm-password" required>
             </div>
             <div id="password-error" class="form-error" style="display: none;"></div>
+            <div id="password-success" class="form-success" style="display: none;"></div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" data-close="password-modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="save-password">Save</button>

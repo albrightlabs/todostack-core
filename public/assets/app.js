@@ -1620,6 +1620,10 @@ const TodoApp = {
         document.getElementById('new-password').value = '';
         document.getElementById('confirm-password').value = '';
         document.getElementById('password-error').style.display = 'none';
+        document.getElementById('password-success').style.display = 'none';
+        // Show form elements, hide success state
+        document.querySelectorAll('#password-modal .form-group').forEach(el => el.style.display = '');
+        document.querySelector('#password-modal .modal-actions').style.display = '';
         this.openModal('password-modal');
         document.getElementById('current-password').focus();
     },
@@ -1656,8 +1660,15 @@ const TodoApp = {
 
             const data = await response.json();
             if (data.success) {
-                this.closeModal('password-modal');
-                alert('Password changed successfully');
+                // Hide form, show success message
+                document.querySelectorAll('#password-modal .form-group').forEach(el => el.style.display = 'none');
+                document.querySelector('#password-modal .modal-actions').style.display = 'none';
+                errorDiv.style.display = 'none';
+                const successDiv = document.getElementById('password-success');
+                successDiv.textContent = 'Password changed successfully';
+                successDiv.style.display = 'block';
+                // Auto-close after 1.5 seconds
+                setTimeout(() => this.closeModal('password-modal'), 1500);
             } else {
                 errorDiv.textContent = data.error || 'Failed to change password';
                 errorDiv.style.display = 'block';

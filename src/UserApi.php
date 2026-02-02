@@ -171,12 +171,20 @@ class UserApi
             jsonError('New password must be at least 8 characters');
         }
 
-        // Get current user
+        // Get current user - try by ID first, then by email as fallback
         $userId = Auth::getCurrentUserId();
         $user = $this->userManager->getById($userId);
         if ($user === null) {
+            // Fallback: look up by email from session
+            $currentUser = Auth::getCurrentUser();
+            if ($currentUser && !empty($currentUser['email'])) {
+                $user = $this->userManager->getByEmail($currentUser['email']);
+            }
+        }
+        if ($user === null) {
             jsonError('User not found', 404);
         }
+        $userId = $user['id']; // Use the actual user ID from the lookup
 
         // Verify current password
         $verifiedUser = $this->userManager->verifyPassword($user['email'], $input['current_password']);
