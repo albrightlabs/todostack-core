@@ -77,7 +77,7 @@ class TodoList
             'sections' => [
                 [
                     'id' => uuid(),
-                    'title' => '',
+                    'title' => 'To-Do',
                     'position' => 0,
                     'collapsed' => false,
                     'items' => [],
@@ -237,14 +237,21 @@ class TodoList
      */
     public function deleteSection(string $id): bool
     {
-        // Don't delete if it's the only section
-        if (count($this->data['sections']) <= 1) {
-            return false;
-        }
-
         foreach ($this->data['sections'] as $index => $section) {
             if ($section['id'] === $id) {
                 array_splice($this->data['sections'], $index, 1);
+
+                // If we deleted the last section, create a new default section
+                if (count($this->data['sections']) === 0) {
+                    $this->data['sections'][] = [
+                        'id' => uuid(),
+                        'title' => 'To-Do',
+                        'position' => 0,
+                        'collapsed' => false,
+                        'items' => [],
+                    ];
+                }
+
                 $this->save();
                 return true;
             }
