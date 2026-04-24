@@ -4,12 +4,12 @@ This guide covers deploying TodoStack to a production server with Laravel Forge,
 
 ## The Problem
 
-TodoStack stores user accounts in `data/users.json` and todos in `data/todos.json`. When deploying new code, these could be overwritten. This guide solves that with a pre-deploy sync strategy that also provides version history.
+TodoStack stores user accounts in `data/users.json` and todos in `data/todos/` (one JSON file per user). When deploying new code, these could be overwritten. This guide solves that with a pre-deploy sync strategy that also provides version history.
 
 ## Strategy Overview
 
 1. **User accounts** (`data/users.json`) are gitignored and copied between releases
-2. **Todo data** (`data/todos.json`) stays in git, with server changes synced back before each deployment
+2. **Todo data** (`data/todos/`) stays in git, with server changes synced back before each deployment
 3. **Uploads** are copied between releases
 4. Automated commits use `[skip ci]` to prevent deployment loops
 
@@ -91,9 +91,9 @@ cd $FORGE_RELEASE_DIRECTORY
 # ═══════════════════════════════════════════════════════════════════════════════
 # PRE-DEPLOY: Sync server todo data to git
 # ═══════════════════════════════════════════════════════════════════════════════
-CURRENT_DATA="/home/forge/$DOMAIN/current/data/todos.json"
+CURRENT_TODOS="/home/forge/$DOMAIN/current/data/todos"
 
-if [ -f "$CURRENT_DATA" ] && [ -d "$REPO_DIR" ]; then
+if [ -d "$CURRENT_TODOS" ] && [ -d "$REPO_DIR" ]; then
     echo "Syncing server todo data..."
 
     cd "$REPO_DIR"
@@ -101,14 +101,14 @@ if [ -f "$CURRENT_DATA" ] && [ -d "$REPO_DIR" ]; then
     git checkout main
     git pull origin main
 
-    # Sync todos.json from current deployment to repo
-    cp "$CURRENT_DATA" "$REPO_DIR/data/todos.json"
+    # Sync todos directory from current deployment to repo
+    rsync -a --delete "$CURRENT_TODOS/" "$REPO_DIR/data/todos/"
 
     # Check for changes and commit if any
-    if [ -n "$(git status --porcelain data/todos.json)" ]; then
+    if [ -n "$(git status --porcelain data/todos/)" ]; then
         git config user.name "TodoStack Deploy"
         git config user.email "deploy@yourdomain.com"
-        git add data/todos.json
+        git add data/todos/
         git commit -m "Auto-sync server todo data [skip ci]"
         git push origin main
         echo "Server todo data synced to git."
@@ -127,7 +127,7 @@ $FORGE_COMPOSER install --no-dev --no-interaction --prefer-dist --optimize-autol
 # ═══════════════════════════════════════════════════════════════════════════════
 # SETUP: Directories and permissions
 # ═══════════════════════════════════════════════════════════════════════════════
-mkdir -p data
+mkdir -p data/todos
 mkdir -p public/uploads
 chmod -R 775 data
 chmod -R 775 public/uploads
